@@ -53,10 +53,11 @@ def seed(db: Database) -> dict:
     for i, name in enumerate(["Aarav Sharma", "Diya Patel", "Kabir Singh",
                               "Ananya Rao", "Vivaan Gupta"], start=1):
         sid = new_id()
+        register_no = f"RA24110260100{73 + i}"   # SRM-style, e.g. RA2411026010074
         db.execute(
             "INSERT INTO student(id,institution_id,register_no,roll_no,full_name,"
             "program,batch_year) VALUES (?,?,?,?,?,?,?)",
-            (sid, inst, f"REG{i:03d}", str(i), name, "B.Tech CSE", 2024),
+            (sid, inst, register_no, str(i), name, "B.Tech CSE", 2024),
         )
         db.execute(
             "INSERT INTO section_roster(section_id,student_id) VALUES (?,?)",
