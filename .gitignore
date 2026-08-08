@@ -15,5 +15,11 @@ backend/attendance.db
 # Secrets
 .env
 
+# Xcode build output / user state
+ios/build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
 # macOS
 .DS_Store

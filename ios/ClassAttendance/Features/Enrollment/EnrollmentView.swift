@@ -27,11 +27,24 @@ struct EnrollmentView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Capture") {
-                CameraPreview(session: cam.session)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                Label(cam.quality.message, systemImage: cam.quality.symbol)
-                    .foregroundStyle(cam.quality.isReady ? .green : .orange)
+                ZStack {
+                    CameraPreview(session: cam.session)
+                        .frame(height: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    if let msg = cam.unavailable {
+                        RoundedRectangle(cornerRadius: 12).fill(Theme.surface2).frame(height: 260)
+                        VStack(spacing: 8) {
+                            Image(systemName: "camera.metering.unknown").font(.system(size: 34))
+                                .foregroundStyle(Theme.dim)
+                            Text(msg).font(.footnote).foregroundStyle(Theme.dim)
+                                .multilineTextAlignment(.center).padding(.horizontal)
+                        }
+                    }
+                }
+                if cam.unavailable == nil {
+                    Label(cam.quality.message, systemImage: cam.quality.symbol)
+                        .foregroundStyle(cam.quality.isReady ? .green : .orange)
+                }
             }
             Button("Enroll Face") { /* POST crop + consent to backend */ }
                 .disabled(!(consent && cam.quality.isReady
@@ -55,15 +68,36 @@ final class FaceCaptureController: NSObject, ObservableObject,
 
     let session = AVCaptureSession()
     @Published var quality = Quality()
+    @Published var unavailable: String?
     private let queue = DispatchQueue(label: "face.capture")
 
     func start() {
-        guard session.inputs.isEmpty else { session.startRunning(); return }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configure()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                Task { @MainActor in
+                    granted ? self.configure()
+                            : (self.unavailable = "Camera access denied. Enable it in Settings → Camera.")
+                }
+            }
+        default:
+            unavailable = "Camera access denied. Enable it in Settings → Camera."
+        }
+    }
+
+    private func configure() {
+        unavailable = nil
+        guard session.inputs.isEmpty else { queue.async { self.session.startRunning() }; return }
         session.sessionPreset = .high
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera,
                                                    for: .video, position: .front),
               let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input) else { return }
+              session.canAddInput(input) else {
+            unavailable = "No camera found. The Simulator has no camera — run on a real iPhone."
+            return
+        }
         session.addInput(input)
         let output = AVCaptureVideoDataOutput()
         output.setSampleBufferDelegate(self, queue: queue)
@@ -110,14 +144,14 @@ struct CameraPreview: UIViewRepresentable {
 
     func makeUIView(context: Context) -> PreviewView {
         let v = PreviewView()
-        v.layer.session = session
-        v.layer.videoGravity = .resizeAspectFill
+        v.previewLayer.session = session
+        v.previewLayer.videoGravity = .resizeAspectFill
         return v
     }
     func updateUIView(_ uiView: PreviewView, context: Context) {}
 
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-        var layer: AVCaptureVideoPreviewLayer { super.layer as! AVCaptureVideoPreviewLayer }
+        var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     }
 }

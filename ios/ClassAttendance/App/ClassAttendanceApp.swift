@@ -14,8 +14,12 @@ struct ClassAttendanceApp: App {
     var body: some Scene {
         WindowGroup {
             if auth.isAuthenticated {
-                ScheduleView()
-                    .environmentObject(auth)
+                if ProcessInfo.processInfo.arguments.contains("-demoreview") {
+                    NavigationStack { AttendanceView(section: DemoData.sections[0]) }
+                        .environmentObject(auth)
+                } else {
+                    MainTabView().environmentObject(auth)
+                }
             } else {
                 LoginView()
                     .environmentObject(auth)

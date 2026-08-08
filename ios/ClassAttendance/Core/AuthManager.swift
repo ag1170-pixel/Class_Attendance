@@ -19,6 +19,10 @@ final class AuthManager: ObservableObject {
         self.demoTeacherId = teacherId
         self.demoTeacherName = teacherName
         self.backendURL = backendURL
+        // UI-test / demo hook: launch with `-autologin` to skip biometric auth.
+        if ProcessInfo.processInfo.arguments.contains("-autologin") {
+            finishLogin()
+        }
     }
 
     func authenticate() {

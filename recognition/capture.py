@@ -21,7 +21,12 @@ class CaptureSource:
     def __init__(self, target: Union[int, str], sample_fps: int = config.SAMPLE_FPS):
         self._cap = cv2.VideoCapture(target)
         if not self._cap.isOpened():
-            raise RuntimeError(f"Could not open capture source: {target!r}")
+            hint = ""
+            if isinstance(target, int):
+                hint = ("\nOn macOS the webcam needs camera permission for your terminal: "
+                        "System Settings → Privacy & Security → Camera → enable Terminal/iTerm, "
+                        "then restart the terminal. Also close any app already using the camera.")
+            raise RuntimeError(f"Could not open capture source: {target!r}{hint}")
         self._sample_fps = sample_fps
 
     def frames(self, max_seconds: Optional[float] = None) -> Iterator["cv2.Mat"]:

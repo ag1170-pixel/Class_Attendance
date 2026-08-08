@@ -9,6 +9,10 @@ struct ClassSection: Identifiable, Codable, Hashable {
     let roomCode: String
     let startTime: String      // "HH:MM"
     let endTime: String
+    var building: String? = nil
+    var day: String? = nil       // "Mon"…"Fri"
+    var isNow: Bool = false
+    var studentCount: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -17,6 +21,10 @@ struct ClassSection: Identifiable, Codable, Hashable {
         case roomCode = "room_code"
         case startTime = "start_time"
         case endTime = "end_time"
+        case building
+        case day
+        case isNow = "is_now"
+        case studentCount = "student_count"
     }
 }
 

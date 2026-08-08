@@ -1,51 +1,76 @@
 import SwiftUI
 
-/// Today's classes for the signed-in teacher. Tapping one opens the attendance
-/// flow. Sections come from the backend (GET /sections).
+/// Today's classes for the signed-in teacher. Search, or add a course by QR.
 struct ScheduleView: View {
     @EnvironmentObject var auth: AuthManager
-    @State private var sections: [ClassSection] = []
-    @State private var loadError: String?
+    @State private var classes = DemoData.sections
+    @State private var query = ""
+    @State private var showScanner = false
+
+    private var filtered: [ClassSection] {
+        query.isEmpty ? classes : classes.filter {
+            "\($0.courseCode) \($0.courseTitle)".localizedCaseInsensitiveContains(query)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if let loadError {
-                    Text(loadError).foregroundStyle(.red)
-                }
                 Section("Today") {
-                    ForEach(sections) { s in
-                        NavigationLink(value: s) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(s.courseCode) · \(s.courseTitle)").font(.headline)
-                                Text("Room \(s.roomCode) · \(s.startTime)–\(s.endTime)")
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                        }
+                    ForEach(filtered) { c in
+                        NavigationLink(value: c) { ClassRow(section: c) }
+                    }
+                    if filtered.isEmpty {
+                        Text("No classes match. Add one with ").foregroundStyle(Theme.dim)
+                            + Text(Image(systemName: "qrcode.viewfinder")) + Text(".")
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .searchable(text: $query, prompt: "Search your classes")
             .navigationTitle("Hi, \(auth.teacherName)")
             .navigationDestination(for: ClassSection.self) { AttendanceView(section: $0) }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink { EnrollmentView() } label: {
-                        Label("Enroll", systemImage: "person.crop.circle.badge.plus")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showScanner = true } label: {
+                        Image(systemName: "qrcode.viewfinder")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") { auth.signOut() }
+            }
+            .sheet(isPresented: $showScanner) {
+                AddCourseSheet { added in
+                    if !classes.contains(where: { $0.id == added.id }) { classes.append(added) }
+                    showScanner = false
                 }
             }
-            .task { await load() }
         }
     }
+}
 
-    private func load() async {
-        do {
-            sections = try await APIClient.shared.mySections()
-        } catch {
-            loadError = "Could not load classes: \(error.localizedDescription)"
+/// Scan a course QR to add it (demo: simulated detection).
+struct AddCourseSheet: View {
+    let onAdd: (ClassSection) -> Void
+    @State private var found: ClassSection?
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Capsule().frame(width: 40, height: 5).foregroundStyle(Theme.dim.opacity(0.4)).padding(.top, 10)
+            Text("Scan course QR").font(.title2.bold())
+            ZStack {
+                RoundedRectangle(cornerRadius: 20).fill(Theme.surface2).frame(height: 220)
+                Image(systemName: "qrcode.viewfinder").font(.system(size: 72)).foregroundStyle(Theme.accent)
+            }.padding(.horizontal)
+            Text(found == nil ? "Point at the course QR…"
+                 : "Found: \(found!.courseCode) · \(found!.courseTitle)")
+                .foregroundStyle(found == nil ? Theme.dim : Theme.present)
+            Spacer()
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            let c = DemoData.addable.first!
+            found = c
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            onAdd(c)
         }
     }
 }
