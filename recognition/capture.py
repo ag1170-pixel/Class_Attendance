@@ -47,10 +47,10 @@ class CaptureSource:
         self._cap.release()
 
 
-def open_source(spec: str) -> CaptureSource:
+def open_source(spec: str, sample_fps: int = config.SAMPLE_FPS) -> CaptureSource:
     """'webcam[:N]' -> camera index N (default 0); anything else (path or
     rtsp://...) is passed straight to cv2.VideoCapture."""
     if spec.startswith("webcam"):
         _, _, idx = spec.partition(":")
-        return CaptureSource(int(idx) if idx else 0)
-    return CaptureSource(spec)
+        return CaptureSource(int(idx) if idx else 0, sample_fps)
+    return CaptureSource(spec, sample_fps)
