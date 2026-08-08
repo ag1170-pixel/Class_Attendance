@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Models (large; fetch with `python -m recognition.download_models`)
+recognition/models/*.onnx
+
+# Local data / test assets / prototype DB
+recognition/data/faces/
+recognition/data/*.mp4
+recognition/data/templates/
+backend/attendance.db
+
+# Secrets
+.env
+
+# macOS
+.DS_Store

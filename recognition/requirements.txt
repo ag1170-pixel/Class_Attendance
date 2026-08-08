@@ -1,0 +1,6 @@
+# Recognition prototype dependencies.
+# Deliberately lightweight (no PyTorch): OpenCV ships the YuNet + SFace models
+# and runs fast on CPU. Production upgrades detection/embedding to YOLOv8+ArcFace
+# behind the same interface (see docs/02_ALGORITHM.md).
+opencv-contrib-python>=4.9
+numpy>=1.24

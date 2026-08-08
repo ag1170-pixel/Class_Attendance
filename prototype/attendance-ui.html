@@ -1,0 +1,848 @@
+<title>Class Attendance — UI Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#eef0f3; --stage:#e7e9ee;
+  --surface:#ffffff; --surface-2:#f6f7f9; --surface-3:#eceef1;
+  --text:#1d1d1f; --dim:#6e6e73; --faint:#8e8e93;
+  --hairline:rgba(0,0,0,.09);
+  --accent:#0b6bff; --accent-press:#0a5fe0;
+  --present:#34c759; --absent:#ff3b30;
+  --shadow:0 30px 60px -20px rgba(20,30,60,.35), 0 8px 20px -8px rgba(20,30,60,.2);
+  --r:22px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --spring:cubic-bezier(.34,1.3,.4,1);
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#000000; --stage:#0a0a0c;
+    --surface:#1c1c1e; --surface-2:#2c2c2e; --surface-3:#3a3a3c;
+    --text:#f5f5f7; --dim:#98989f; --faint:#7c7c82;
+    --hairline:rgba(255,255,255,.12);
+    --accent:#0a84ff; --accent-press:#3b9bff;
+    --present:#32d74b; --absent:#ff453a;
+    --shadow:0 30px 70px -20px rgba(0,0,0,.8), 0 8px 24px -8px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#eef0f3; --stage:#e7e9ee; --surface:#fff; --surface-2:#f6f7f9; --surface-3:#eceef1;
+  --text:#1d1d1f; --dim:#6e6e73; --faint:#8e8e93; --hairline:rgba(0,0,0,.09);
+  --accent:#0b6bff; --accent-press:#0a5fe0; --present:#34c759; --absent:#ff3b30;
+  --shadow:0 30px 60px -20px rgba(20,30,60,.35), 0 8px 20px -8px rgba(20,30,60,.2);
+}
+:root[data-theme="dark"]{
+  --bg:#000; --stage:#0a0a0c; --surface:#1c1c1e; --surface-2:#2c2c2e; --surface-3:#3a3a3c;
+  --text:#f5f5f7; --dim:#98989f; --faint:#7c7c82; --hairline:rgba(255,255,255,.12);
+  --accent:#0a84ff; --accent-press:#3b9bff; --present:#32d74b; --absent:#ff453a;
+  --shadow:0 30px 70px -20px rgba(0,0,0,.8), 0 8px 24px -8px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font);background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  padding:32px 16px 56px;-webkit-font-smoothing:antialiased;
+}
+.head{text-align:center;max-width:560px;margin-bottom:22px}
+.head h1{font-size:22px;font-weight:650;letter-spacing:-.02em}
+.head p{font-size:14px;color:var(--dim);margin-top:6px;line-height:1.5}
+
+/* segmented control */
+.seg{display:inline-flex;background:var(--surface-3);border-radius:11px;padding:3px;margin-bottom:26px;position:relative}
+.seg button{position:relative;z-index:2;border:0;background:transparent;color:var(--text);
+  font-family:inherit;font-size:14px;font-weight:560;padding:8px 22px;border-radius:9px;cursor:pointer;transition:color .25s}
+.seg .thumb{position:absolute;top:3px;left:3px;height:calc(100% - 6px);width:calc(50% - 3px);
+  background:var(--surface);border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.14);transition:transform .32s var(--spring)}
+.seg[data-persona="student"] .thumb{transform:translateX(100%)}
+
+/* phone */
+.phone{
+  width:340px;height:710px;background:var(--surface);border-radius:52px;position:relative;
+  box-shadow:var(--shadow);border:1px solid var(--hairline);overflow:hidden;
+}
+.notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:112px;height:30px;
+  background:#000;border-radius:16px;z-index:60}
+:root[data-theme="light"] .notch{background:#000}
+.statusbar{position:absolute;top:0;left:0;right:0;height:54px;z-index:50;display:flex;
+  align-items:center;justify-content:space-between;padding:18px 30px 0;font-size:13px;font-weight:600;color:var(--text)}
+.statusbar .dots{display:flex;gap:5px;align-items:center}
+.statusbar .dots i{width:15px;height:11px;border-radius:2px;background:var(--text);opacity:.85;display:inline-block}
+.statusbar .dots i.b{width:22px;border-radius:3px;border:1px solid var(--text);background:transparent;position:relative}
+.statusbar .dots i.b::after{content:"";position:absolute;inset:2px;width:70%;background:var(--text);border-radius:1px}
+
+/* screen stack */
+.screens{position:absolute;inset:0;overflow:hidden}
+.screen{position:absolute;inset:0;padding:66px 22px 30px;display:flex;flex-direction:column;
+  background:var(--surface);opacity:0;transform:translateX(28px);pointer-events:none;
+  transition:opacity .34s var(--ease),transform .40s var(--spring)}
+.screen.active{opacity:1;transform:none;pointer-events:auto}
+.screen.past{opacity:0;transform:translateX(-26px)}
+
+h2.title{font-size:30px;font-weight:720;letter-spacing:-.03em;line-height:1.05;text-wrap:balance}
+.sub{font-size:14.5px;color:var(--dim);line-height:1.5;margin-top:8px}
+.eyebrow{font-size:12px;font-weight:640;letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
+.spacer{flex:1}
+
+/* buttons */
+.btn{border:0;font-family:inherit;font-size:16px;font-weight:600;color:#fff;background:var(--accent);
+  border-radius:15px;padding:15px;width:100%;cursor:pointer;transition:transform .12s var(--ease),background .2s;
+  display:flex;align-items:center;justify-content:center;gap:9px}
+.btn:active{transform:scale(.968);background:var(--accent-press)}
+.btn.sec{background:var(--surface-2);color:var(--text)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.ghost{background:transparent;color:var(--accent)}
+
+/* lock screen */
+.lock{align-items:center;justify-content:center;text-align:center;gap:0}
+.faceid{width:92px;height:92px;margin-bottom:26px;cursor:pointer}
+.faceid svg{width:100%;height:100%}
+.faceid .frame{stroke:var(--accent);stroke-width:4;fill:none;stroke-linecap:round}
+.faceid.scan .frame{animation:faceflash .5s var(--ease)}
+@keyframes faceflash{0%,100%{opacity:1}50%{opacity:.35}}
+.faceid .feat{stroke:var(--accent);stroke-width:4;stroke-linecap:round;fill:none;
+  stroke-dasharray:40;stroke-dashoffset:0}
+.faceid.scan .feat{animation:draw .6s var(--ease)}
+@keyframes draw{from{stroke-dashoffset:40}to{stroke-dashoffset:0}}
+
+/* list */
+.list{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+.card{background:var(--surface-2);border-radius:16px;padding:16px 17px;cursor:pointer;
+  transition:transform .14s var(--ease),background .2s;border:1px solid transparent}
+.card:active{transform:scale(.98)}
+.card .row{display:flex;align-items:center;justify-content:space-between}
+.card h3{font-size:16.5px;font-weight:620;letter-spacing:-.01em}
+.card .meta{font-size:13px;color:var(--dim);margin-top:3px}
+.card .chev{color:var(--faint);font-size:19px}
+.pill{font-size:11.5px;font-weight:640;padding:4px 9px;border-radius:20px;letter-spacing:.02em}
+.pill.next{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)}
+
+/* class detail / trigger */
+.hero-cam{margin:26px 0;border-radius:20px;height:190px;background:
+  radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--accent) 22%,var(--surface-2)),var(--surface-2));
+  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border:1px solid var(--hairline)}
+.viewfinder{width:74px;height:74px;position:relative}
+.viewfinder span{position:absolute;width:20px;height:20px;border:3px solid var(--accent);opacity:.85}
+.viewfinder span:nth-child(1){top:0;left:0;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+.viewfinder span:nth-child(2){top:0;right:0;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+.viewfinder span:nth-child(3){bottom:0;left:0;border-right:0;border-top:0;border-radius:0 0 0 6px}
+.viewfinder span:nth-child(4){bottom:0;right:0;border-left:0;border-top:0;border-radius:0 0 6px 0}
+.infoline{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--dim);line-height:1.45;margin-top:2px}
+.infoline svg{flex:none;margin-top:1px}
+
+/* scanning */
+.scanwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.scanbox{width:210px;height:210px;border-radius:26px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,var(--surface-3),var(--surface-2));border:1px solid var(--hairline)}
+.scanline{position:absolute;left:0;right:0;height:3px;background:var(--accent);
+  box-shadow:0 0 16px 3px color-mix(in srgb,var(--accent) 70%,transparent);top:0;
+  animation:scanmove 1.5s var(--ease) infinite}
+@keyframes scanmove{0%{top:6%}50%{top:92%}100%{top:6%}}
+.facebox{position:absolute;border:2.5px solid var(--present);border-radius:8px;opacity:0;
+  animation:pop .4s var(--spring) forwards}
+@keyframes pop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+.scan-caption{margin-top:22px;font-size:15px;font-weight:560;color:var(--dim)}
+.dots-load{display:inline-flex;gap:4px;margin-left:2px}
+.dots-load i{width:5px;height:5px;border-radius:50%;background:var(--dim);animation:blink 1.2s infinite}
+.dots-load i:nth-child(2){animation-delay:.2s}.dots-load i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+/* review */
+.summary{display:flex;gap:10px;margin:18px 0 14px}
+.stat{flex:1;background:var(--surface-2);border-radius:15px;padding:13px 15px;cursor:pointer;
+  border:1.5px solid transparent;transition:border-color .2s,transform .12s}
+.stat:active{transform:scale(.97)}
+.stat.p.sel{border-color:var(--present)}
+.stat.a.sel{border-color:var(--absent)}
+.stat .n{font-size:27px;font-weight:720;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .l{font-size:12px;color:var(--dim);font-weight:560;margin-top:1px;display:flex;align-items:center;gap:4px}
+.stat.p .n{color:var(--present)}.stat.a .n{color:var(--absent)}
+.filterhint{font-size:11px;color:var(--faint);text-align:center;margin:-4px 0 8px;height:13px;transition:opacity .2s}
+
+/* unrecognized (unenrolled) faces detected in the room */
+.unknown{margin-top:8px;border-top:1px solid var(--hairline);padding-top:12px}
+.unknown-head{font-size:12px;font-weight:640;letter-spacing:.03em;text-transform:uppercase;color:#ff9f0a;
+  margin-bottom:9px;display:flex;align-items:center;gap:6px}
+.unknown-row{display:flex;align-items:center;gap:12px;padding:3px 0}
+.uface{width:40px;height:40px;border-radius:50%;flex:none;color:#ff9f0a;
+  background:color-mix(in srgb,#ff9f0a 18%,var(--surface-2));display:flex;align-items:center;justify-content:center}
+.chip{border:0;background:var(--accent);color:#fff;font-family:inherit;font-size:13px;font-weight:600;
+  padding:8px 13px;border-radius:20px;cursor:pointer;transition:transform .12s;white-space:nowrap}
+.chip:active{transform:scale(.94)}
+.chip.done{background:var(--surface-3);color:var(--dim)}
+
+/* camera-view locate — highlight the unenrolled person in the actual frame */
+.camframe{position:relative;height:212px;border-radius:16px;overflow:hidden;margin:14px 0;
+  background:linear-gradient(160deg,#2b3039,#191d23);border:1px solid var(--hairline)}
+.camframe .tag{position:absolute;top:9px;left:11px;z-index:2;font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.heads{position:absolute;inset:0;padding:38px 22px 20px;display:grid;grid-template-columns:repeat(5,1fr);
+  gap:18px 12px;align-content:center}
+.head{width:23px;height:26px;border-radius:48% 48% 42% 42%;background:rgba(255,255,255,.20);justify-self:center}
+.head.hi{background:rgba(255,159,10,.95);position:relative;
+  box-shadow:0 0 0 3px #ff9f0a,0 0 14px 2px rgba(255,159,10,.55);animation:seatpulse 1.3s ease-in-out infinite}
+.head.hi::after{content:"NOT ENROLLED";position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-size:8px;font-weight:700;letter-spacing:.03em;color:#ff9f0a;white-space:nowrap}
+@keyframes seatpulse{0%,100%{box-shadow:0 0 0 3px rgba(255,159,10,.45),0 0 14px 2px rgba(255,159,10,.5)}
+  50%{box-shadow:0 0 0 7px rgba(255,159,10,.12),0 0 14px 2px rgba(255,159,10,.5)}}
+.roster{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin:0 -6px;padding:0 6px}
+.stu{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--hairline);
+  cursor:pointer;opacity:0;transform:translateY(8px);animation:rise .4s var(--ease) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--surface-3);flex:none;display:flex;
+  align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--dim)}
+.stu .nm{flex:1;min-width:0}
+.stu .nm b{font-size:15px;font-weight:560;display:block;letter-spacing:-.01em}
+.stu .nm small{font-size:12px;color:var(--faint)}
+.mark{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+  transition:transform .18s var(--spring);border:2px solid var(--surface-3)}
+.mark.on{border-color:transparent;background:var(--present);color:#fff}
+.mark.off{border-color:transparent;background:var(--absent);color:#fff}
+.stu:active .mark{transform:scale(.82)}
+.conf{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+/* submitted */
+.done{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px}
+.seal{width:96px;height:96px;margin-bottom:14px}
+.seal circle{fill:none;stroke:var(--present);stroke-width:5;stroke-dasharray:283;stroke-dashoffset:283;
+  animation:ring .6s var(--ease) forwards}
+.seal path{fill:none;stroke:var(--present);stroke-width:6;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:60;stroke-dashoffset:60;animation:draw2 .4s .45s var(--ease) forwards}
+@keyframes ring{to{stroke-dashoffset:0}}
+@keyframes draw2{to{stroke-dashoffset:0}}
+
+/* student — consent + capture */
+.field{background:var(--surface-2);border-radius:14px;padding:15px 16px;margin-top:12px}
+.field label{font-size:12px;color:var(--faint);font-weight:560}
+.field .v{font-size:16px;font-weight:520;margin-top:3px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  background:var(--surface-2);border-radius:14px;padding:15px 16px;margin-top:12px}
+.toggle-row .t{font-size:14.5px;font-weight:540;line-height:1.4}
+.toggle-row small{display:block;color:var(--faint);font-size:12px;font-weight:400;margin-top:3px}
+.sw{width:51px;height:31px;border-radius:16px;background:var(--surface-3);position:relative;flex:none;cursor:pointer;transition:background .28s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.3);transition:transform .28s var(--spring)}
+.sw.on{background:var(--present)}.sw.on::after{transform:translateX(20px)}
+.capframe{margin:20px 0;height:230px;border-radius:22px;position:relative;overflow:hidden;
+  background:radial-gradient(90% 80% at 50% 35%,var(--surface-3),var(--surface-2));border:1px solid var(--hairline);
+  display:flex;align-items:center;justify-content:center}
+.ovaltrace{width:132px;height:168px;border:3px dashed var(--faint);border-radius:50%;transition:border-color .4s,box-shadow .4s}
+.capframe.good .ovaltrace{border-style:solid;border-color:var(--present);box-shadow:0 0 0 4px color-mix(in srgb,var(--present) 22%,transparent)}
+.qual{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:560;color:var(--dim);transition:color .3s}
+.capframe.good ~ .qual,.qual.good{color:var(--present)}
+
+/* caption under phone */
+.stagecap{margin-top:22px;font-size:13px;color:var(--dim);text-align:center;max-width:340px;min-height:34px;line-height:1.5}
+.reset{margin-top:10px;background:none;border:0;color:var(--accent);font-family:inherit;font-size:13px;font-weight:560;cursor:pointer}
+.theme{position:fixed;top:16px;right:16px;background:var(--surface);border:1px solid var(--hairline);
+  color:var(--text);font-family:inherit;font-size:12px;font-weight:560;padding:8px 13px;border-radius:20px;cursor:pointer;box-shadow:var(--shadow)}
+
+/* iOS home indicator */
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:126px;height:5px;
+  border-radius:3px;background:var(--text);opacity:.35;z-index:70;pointer-events:none}
+
+/* iOS tab bar */
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:82px;z-index:55;display:flex;
+  padding:8px 16px 22px;gap:4px;
+  background:color-mix(in srgb,var(--surface) 78%,transparent);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:.5px solid var(--hairline);
+  transform:translateY(100%);transition:transform .38s var(--spring);pointer-events:none}
+.tabbar.show{transform:none;pointer-events:auto}
+.tabbar button{flex:1;border:0;background:none;font-family:inherit;cursor:pointer;color:var(--faint);
+  display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:560;
+  transition:color .2s}
+.tabbar button.on{color:var(--accent)}
+.tabbar button svg{width:25px;height:25px}
+.tabbar button:active{transform:scale(.9)}
+/* screens sit above nothing here; give tab screens room for the bar */
+.screen.hasTab{padding-bottom:96px}
+
+/* roster fade so the last row never hides under Submit */
+.roster{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 20px),transparent);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 20px),transparent);padding-bottom:10px}
+
+/* scan progress ring */
+.ring{width:70px;height:70px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:6}
+.ring .track{stroke:var(--surface-3)}
+.ring .fill{stroke:var(--accent);stroke-linecap:round;stroke-dasharray:201;stroke-dashoffset:201;
+  animation:ringfill 2.4s var(--ease) forwards}
+@keyframes ringfill{to{stroke-dashoffset:0}}
+.scanbox{position:relative}
+.ring-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3}
+
+/* ambient camera sweep on the trigger preview */
+.hero-cam::after{content:"";position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 60%,transparent),transparent);
+  animation:sweep 3s var(--ease) infinite;opacity:.7}
+@keyframes sweep{0%{top:12%}50%{top:86%}100%{top:12%}}
+
+/* header icon buttons + search */
+.iconbtn{width:38px;height:38px;border-radius:11px;background:var(--surface-2);border:0;color:var(--text);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
+.iconbtn:active{transform:scale(.9)}
+.searchfield{width:100%;margin-top:14px;padding:11px 14px;border-radius:12px;border:1px solid var(--hairline);
+  background:var(--surface-2);color:var(--text);font-family:inherit;font-size:15px;outline:none}
+.searchfield:focus{border-color:var(--accent)}
+.searchfield::placeholder{color:var(--faint)}
+.added{animation:addflash 1.3s var(--ease)}
+@keyframes addflash{0%{background:color-mix(in srgb,var(--accent) 24%,var(--surface-2));
+  box-shadow:0 0 0 2px var(--accent)}100%{}}
+.empty{text-align:center;color:var(--faint);font-size:14px;padding:30px 0}
+
+/* history card present-count pill */
+.hpill{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+.hpill b{font-size:19px;font-weight:680;color:var(--present);font-variant-numeric:tabular-nums}
+.hpill small{font-size:11px;color:var(--faint);margin-top:3px;letter-spacing:.02em}
+.hcard .row{align-items:center;gap:12px}
+.hcard h3{font-size:15.5px;line-height:1.25;text-wrap:balance}
+.hbar{height:4px;border-radius:3px;background:var(--surface-3);margin-top:11px;overflow:hidden}
+.hbar>i{display:block;height:100%;background:var(--present);border-radius:3px}
+
+/* student theme picker (accent selection) */
+.themepick{display:flex;gap:10px;margin-top:20px;justify-content:center}
+.swatch{flex:1;max-width:96px;border:1.5px solid var(--hairline);background:var(--surface-2);
+  border-radius:14px;padding:12px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;
+  gap:8px;font-size:12px;font-weight:560;color:var(--dim);transition:border-color .2s,transform .12s}
+.swatch:active{transform:scale(.96)}
+.swatch.on{border-color:var(--dot);color:var(--text)}
+.swatch .dot{width:26px;height:26px;border-radius:50%;background:var(--dot);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--dot) 18%,transparent)}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s!important;transition-duration:.06s!important}
+  .hero-cam::after,.scanline{display:none}}
+@media (max-width:400px){.phone{transform:scale(.92);margin:-24px 0}}
+</style>
+
+<button class="theme" id="themeBtn">◐ Theme</button>
+
+<div class="head">
+  <h1>Class Attendance</h1>
+  <p>Tap through the real flow. Teacher takes attendance from the room camera in seconds; the student enrolls their face once. Everything below is interactive.</p>
+</div>
+
+<div class="seg" id="seg" data-persona="teacher">
+  <span class="thumb"></span>
+  <button data-persona="teacher">Teacher</button>
+  <button data-persona="student">Student</button>
+</div>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar">
+    <span id="clock">9:41</span>
+    <span class="dots"><i></i><i style="width:12px"></i><i class="b"></i></span>
+  </div>
+  <div class="screens" id="screens"></div>
+  <div class="tabbar" id="tabbar"></div>
+  <div class="homebar"></div>
+</div>
+
+<div class="stagecap" id="stagecap"></div>
+<button class="reset" id="resetBtn">↺ Restart flow</button>
+
+<script>
+const CAPS = {
+  lock:'Lock screen — tap Face ID to sign in.',
+  today:'Your classes. Search 🔍, or add a course by QR with +.',
+  scanCourse:'Scan a course QR once to add it — then just search for it.',
+  history:'Past sessions, each stored and audit-logged.',
+  settings:'Simple, honest controls — Face ID, alerts, privacy.',
+  locate:'See where the unenrolled person sits, so you can point them out.',
+  classQR:'The class pass. Students scan to join; the teacher scans to open attendance.',
+  trigger:'You’re in the room. One tap captures ~5s from the room camera.',
+  scan:'Recognising faces from the clip — detect once, then track.',
+  review:'Pre-filled present/absent. Tap any student to correct, then submit.',
+  done:'Submitted and audit-logged. The whole flow took seconds.',
+  enrollIntro:'Join a class: scan its QR, then set your face once.',
+  consent:'Consent first. Biometric data is university-owned and revocable.',
+  capture:'Live quality check on-device (Vision). It only accepts a clean face.',
+  enrolled:'Joined. From now on the camera marks them automatically.',
+};
+// linear "next" for the capture / enroll flows (tabs are navigated separately)
+const NEXT = {lock:'today', today:'trigger', trigger:'scan', scan:'review', review:'done', done:'today',
+  enrollIntro:'consent', consent:'capture', capture:'enrolled', enrolled:'enrollIntro'};
+const TAB_SET = new Set(['today','history','settings']);
+const START = {teacher:'lock', student:'enrollIntro'};
+
+const STUDENTS = [
+  ['Aarav Sharma','RA2411026010074',true,0.94],
+  ['Diya Patel','RA2411026010075',true,0.91],
+  ['Kabir Singh','RA2411026010076',false,0],
+  ['Ananya Rao','RA2411026010077',true,0.88],
+  ['Vivaan Gupta','RA2411026010078',true,0.79],
+  ['Isha Nair','RA2411026010079',false,0],
+  ['Rohan Mehta','RA2411026010080',true,0.86],
+];
+
+const screensEl = document.getElementById('screens');
+const stagecap = document.getElementById('stagecap');
+const tabbar = document.getElementById('tabbar');
+let persona='teacher', current='lock', marks=[];
+
+function h(html){const d=document.createElement('div');d.innerHTML=html.trim();return d.firstElementChild;}
+
+function show(id){
+  current=id;
+  const isTab=TAB_SET.has(id);
+  const cached=screensEl.querySelector('#s-'+id);
+  if(cached && !isTab) cached.remove();          // flow screens rebuild so motion re-runs
+  let el=screensEl.querySelector('#s-'+id);
+  if(!el){ el=build(id); el.id='s-'+id; if(isTab) el.classList.add('hasTab'); screensEl.appendChild(el); }
+  [...screensEl.children].forEach(c=>c.classList.toggle('active',c===el));
+  requestAnimationFrame(()=>el.classList.add('active'));
+  stagecap.textContent=CAPS[id]||'';
+  const tabsVisible = persona==='teacher' && isTab;
+  tabbar.classList.toggle('show',tabsVisible);
+  [...tabbar.children].forEach(b=>b.classList.toggle('on',b.dataset.id===id));
+}
+function next(){ if(NEXT[current]) show(NEXT[current]); }
+
+// Teacher's classes — mutable: a teacher adds a course by scanning its QR once,
+// then just searches for it (no re-scanning).
+let teacherClasses=[
+  {code:'CS301',title:'Operating Systems',room:'A-101',time:'9:00–10:00',n:42,now:true},
+  {code:'CS410',title:'Networks',room:'B-204',time:'11:00–12:00',n:38},
+  {code:'CS250',title:'Data Structures',room:'A-101',time:'2:00–3:00',n:51},
+];
+const ADDABLE=[
+  {code:'CS520',title:'Machine Learning',room:'C-310',time:'3:30–4:30',n:45},
+  {code:'MA201',title:'Discrete Mathematics',room:'B-105',time:'10:00–11:00',n:60},
+  {code:'CS330',title:'Database Systems',room:'A-102',time:'1:00–2:00',n:48},
+];
+let selectedClass=teacherClasses[0], justAdded=null;
+
+// Student-selectable accent (default / pink for girls / blue for boys).
+const ACCENTS={default:null, girl:{a:'#ff3d8a',p:'#e62e78'}, boy:{a:'#2e7bff',p:'#1e63e0'}};
+let studentAccent='default';
+function refreshAccent(){
+  const c = persona==='student' ? ACCENTS[studentAccent] : null;   // teacher always default
+  if(!c){ screensEl.style.removeProperty('--accent'); screensEl.style.removeProperty('--accent-press'); }
+  else { screensEl.style.setProperty('--accent',c.a); screensEl.style.setProperty('--accent-press',c.p); }
+}
+
+// Representative QR (finder patterns + deterministic data cells). The native app
+// scans a REAL QR via VisionKit that carries a deep link like
+// classattendance://class/<id>; this is the visual stand-in for the prototype.
+function qrSVG(text,size=170){
+  const N=25, cell=size/N;
+  let hsh=2166136261; for(const ch of text){hsh^=ch.charCodeAt(0);hsh=Math.imul(hsh,16777619);}
+  const finder=(x,y,bx,by)=>{const rx=x-bx,ry=y-by;return (rx===0||rx===6||ry===0||ry===6)||(rx>=2&&rx<=4&&ry>=2&&ry<=4)?1:0;};
+  let cells='';
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    let on;
+    if(x<7&&y<7) on=finder(x,y,0,0);
+    else if(x>=N-7&&y<7) on=finder(x,y,N-7,0);
+    else if(x<7&&y>=N-7) on=finder(x,y,0,N-7);
+    else if((x<8&&y<8)||(x>=N-8&&y<8)||(x<8&&y>=N-8)) on=0; // quiet separators
+    else on=(Math.imul((x+1)*(y+7)^hsh,2654435761)>>>28)&1;
+    if(on) cells+=`<rect x="${(x*cell).toFixed(1)}" y="${(y*cell).toFixed(1)}" width="${cell.toFixed(1)}" height="${cell.toFixed(1)}"/>`;
+  }
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><rect width="${size}" height="${size}" rx="10" fill="#fff"/><g fill="#000" transform="translate(8,8) scale(${(size-16)/size})">${cells}</g></svg>`;
+}
+
+const TABS=[
+  ['today','Today','<path d="M4 8 h18 M7 3 v3 M19 3 v3 M4 8 a2 2 0 0 1 2-2 h14 a2 2 0 0 1 2 2 v12 a2 2 0 0 1-2 2 H6 a2 2 0 0 1-2-2 Z" fill="none" stroke="currentColor" stroke-width="1.7"/>'],
+  ['history','History','<circle cx="13" cy="13" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13 8 v5 l3.5 2.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+  ['settings','Settings','<circle cx="13" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13 3 v3 M13 20 v3 M3 13 h3 M20 13 h3 M6 6 l2 2 M18 18 l2 2 M20 6 l-2 2 M8 18 l-2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'],
+];
+function buildTabs(){
+  tabbar.innerHTML='';
+  TABS.forEach(([id,label,icon])=>{
+    const b=document.createElement('button'); b.dataset.id=id;
+    b.innerHTML=`<svg viewBox="0 0 26 26">${icon}</svg>${label}`;
+    b.onclick=()=>show(id);
+    tabbar.appendChild(b);
+  });
+}
+
+function build(id){
+  const s=document.createElement('div'); s.className='screen';
+  if(id==='lock'){
+    s.classList.add('lock');
+    s.innerHTML=`
+      <div class="faceid" id="faceGlyph">
+        <svg viewBox="0 0 92 92">
+          <path class="frame" d="M8 26 V14 a6 6 0 0 1 6 -6 H26 M66 8 H78 a6 6 0 0 1 6 6 V26 M84 66 V78 a6 6 0 0 1 -6 6 H66 M26 84 H14 a6 6 0 0 1 -6 -6 V66"/>
+          <path class="feat" d="M34 36 V44 M58 36 V44"/>
+          <path class="feat" d="M46 40 V52 M40 58 q6 5 12 0"/>
+        </svg>
+      </div>
+      <h2 class="title" style="font-size:24px">Class Attendance</h2>
+      <p class="sub" style="text-align:center;max-width:220px">Tap Face ID to sign in as Prof. Rao</p>
+      <div class="spacer"></div>
+      <button class="btn" id="lockBtn">Sign in with Face ID</button>`;
+    const trig=()=>{const g=s.querySelector('#faceGlyph');g.classList.add('scan');setTimeout(next,650);};
+    s.querySelector('#lockBtn').onclick=trig; s.querySelector('#faceGlyph').onclick=trig;
+  }
+  else if(id==='today'){
+    s.innerHTML=`
+      <div class="row" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div><span class="eyebrow">Friday, 8 Aug</span>
+          <h2 class="title" style="margin-top:6px">Good morning,<br>Prof. Rao</h2></div>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <button class="iconbtn" id="searchBtn" title="Search">
+            <svg width="19" height="19" viewBox="0 0 19 19" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M12.5 12.5 L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          <button class="iconbtn" id="addBtn" title="Add course by QR">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4 V16 M4 10 H16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+      <input class="searchfield" id="searchField" placeholder="Search your classes" style="display:none">
+      <div class="list" id="classList"></div>`;
+    const listEl=s.querySelector('#classList'), sf=s.querySelector('#searchField');
+    function renderList(q=''){
+      const ql=q.trim().toLowerCase();
+      const shown=teacherClasses.filter(c=>(c.code+' '+c.title).toLowerCase().includes(ql));
+      listEl.innerHTML = shown.length ? '' : '<div class="empty">No classes match. Add one with the + button.</div>';
+      shown.forEach(c=>{
+        const card=h(`<div class="card${c===justAdded?' added':''}">
+          <div class="row"><h3>${c.code} · ${c.title}</h3>${c.now?'<span class="pill next">Now</span>':'<span class="chev">›</span>'}</div>
+          <div class="meta">Room ${c.room} · ${c.time} · ${c.n} students</div>
+        </div>`);
+        card.onclick=()=>{ selectedClass=c; next(); };
+        listEl.appendChild(card);
+      });
+      justAdded=null;
+    }
+    renderList();
+    s.querySelector('#searchBtn').onclick=()=>{
+      const hidden=sf.style.display==='none';
+      sf.style.display=hidden?'block':'none';
+      if(hidden) sf.focus(); else { sf.value=''; renderList(); }
+    };
+    sf.oninput=()=>renderList(sf.value);
+    s.querySelector('#addBtn').onclick=()=>show('scanCourse');
+  }
+  else if(id==='scanCourse'){
+    s.innerHTML=`
+      <span class="eyebrow">Add a course</span>
+      <h2 class="title" style="margin-top:4px;font-size:26px">Scan course QR</h2>
+      <div class="hero-cam" style="height:210px;margin:22px 0">
+        <div class="viewfinder"><span></span><span></span><span></span><span></span></div>
+      </div>
+      <div class="scan-caption" id="scc" style="text-align:center">Point at the course QR<span class="dots-load"><i></i><i></i><i></i></span></div>
+      <div class="spacer"></div>
+      <button class="btn sec" id="scCancel">Cancel</button>`;
+    s.querySelector('#scCancel').onclick=()=>show('today');
+    const next2=ADDABLE.find(c=>!teacherClasses.some(t=>t.code===c.code));
+    setTimeout(()=>{ if(current!=='scanCourse') return;
+      if(!next2){ s.querySelector('#scc').textContent='All demo courses already added.'; return; }
+      s.querySelector('#scc').textContent=`Found: ${next2.code} · ${next2.title}`;
+      setTimeout(()=>{ if(current!=='scanCourse') return;
+        teacherClasses.push(next2); justAdded=next2;
+        document.querySelector('#s-today')?.remove();   // force Today to re-render with the new class
+        show('today'); },850);
+    },1700);
+  }
+  else if(id==='trigger'){
+    s.innerHTML=`
+      <span class="eyebrow">${selectedClass.code} · Room ${selectedClass.room}</span>
+      <h2 class="title" style="margin-top:6px">${selectedClass.title}</h2>
+      <div class="hero-cam"><div class="viewfinder"><span></span><span></span><span></span><span></span></div></div>
+      <div class="infoline">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1 L14 4 V8 c0 4-3 6-6 7-3-1-6-3-6-7 V4 Z" stroke="var(--present)" stroke-width="1.4"/><path d="M5.5 8 l1.8 1.8 L11 6" stroke="var(--present)" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span>You’re in the room. Captures ~5 seconds from camera <b>CAM-${selectedClass.room}</b> and marks who’s present.</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="takeBtn">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 6 a2 2 0 0 1 2-2 h1 l1-1.5 h4 L13 4 h0 a2 2 0 0 1 2 2 v6 a2 2 0 0 1-2 2 H5 a2 2 0 0 1-2-2 Z" stroke="#fff" stroke-width="1.3"/><circle cx="9" cy="9" r="2.6" stroke="#fff" stroke-width="1.3"/></svg>
+        Take Attendance
+      </button>
+      <button class="btn ghost" id="qrBtn" style="margin-top:8px">Show class QR</button>`;
+    s.querySelector('#takeBtn').onclick=next;
+    s.querySelector('#qrBtn').onclick=()=>show('classQR');
+  }
+  else if(id==='scan'){
+    s.innerHTML=`
+      <div class="scanwrap">
+        <div class="scanbox" id="scanbox">
+          <div class="scanline"></div>
+          <div class="ring-wrap"><svg class="ring" viewBox="0 0 70 70">
+            <circle class="track" cx="35" cy="35" r="32"/>
+            <circle class="fill" cx="35" cy="35" r="32"/></svg></div>
+        </div>
+        <div class="scan-caption" id="scancap">Detecting faces<span class="dots-load"><i></i><i></i><i></i></span></div>
+      </div>`;
+    // spawn face boxes progressively; count matched against the roster
+    const box=s.querySelector('#scanbox'), cap=s.querySelector('#scancap');
+    const coords=[[18,22,46,54],[120,30,58,66],[60,110,52,60],[140,120,46,54],[30,120,44,50]];
+    coords.forEach((c,i)=>setTimeout(()=>{
+      if(!s.classList.contains('active'))return;
+      const f=document.createElement('div');f.className='facebox';
+      f.style.cssText=`left:${c[0]}px;top:${c[1]}px;width:${c[2]}px;height:${c[3]}px`;
+      box.appendChild(f);
+      cap.textContent=`Matched ${i+1} of 42`;
+    },420+i*360));
+    setTimeout(()=>{ if(current==='scan') next(); },2500);
+  }
+  else if(id==='review'){
+    const present=STUDENTS.filter(x=>x[2]).length, absent=STUDENTS.length-present;
+    marks=STUDENTS.map(x=>x[2]);
+    s.innerHTML=`
+      <div class="row" style="display:flex;justify-content:space-between;align-items:baseline">
+        <h2 class="title" style="font-size:24px">Review</h2>
+        <span class="sub" style="margin:0">42 enrolled · 7 shown</span>
+      </div>
+      <div class="summary">
+        <div class="stat p" id="statP"><div class="n" id="np">0</div><div class="l">Present</div></div>
+        <div class="stat a" id="statA"><div class="n" id="na">0</div><div class="l">Absent</div></div>
+      </div>
+      <div class="filterhint" id="fhint">Tap Present or Absent to filter</div>
+      <div class="roster" id="roster"></div>
+      <div class="unknown">
+        <div class="unknown-head">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1 L13 12.5 H1 Z" stroke="#ff9f0a" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 5 V8" stroke="#ff9f0a" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="10.3" r=".7" fill="#ff9f0a"/></svg>
+          1 unrecognized face
+        </div>
+        <div class="unknown-row">
+          <div class="uface"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div class="nm" style="flex:1"><b>Not enrolled</b><small>Seen in the room — tap to locate them</small></div>
+          <button class="chip" id="seeSeat">Locate</button>
+        </div>
+      </div>
+      <button class="btn ghost" id="manualToggle" style="margin-top:10px">＋ Add student manually</button>
+      <div id="manualForm" style="display:none;margin-top:6px">
+        <input class="searchfield" id="mReg" placeholder="Register no (e.g. RA2411026010081)" style="margin-top:0">
+        <input class="searchfield" id="mName" placeholder="Full name" style="margin-top:8px">
+        <button class="btn" id="mAdd" style="margin-top:10px">Add to attendance</button>
+      </div>
+      <button class="btn" id="submitBtn" style="margin-top:12px">Submit Attendance</button>`;
+    s.querySelector('#seeSeat').onclick=()=>show('locate');
+    const mForm=s.querySelector('#manualForm');
+    s.querySelector('#manualToggle').onclick=()=>{
+      const hidden=mForm.style.display==='none';
+      mForm.style.display=hidden?'block':'none';
+      if(hidden) s.querySelector('#mReg').focus();
+    };
+    s.querySelector('#mAdd').onclick=()=>{
+      const reg=s.querySelector('#mReg').value.trim(), nm=s.querySelector('#mName').value.trim();
+      if(!reg||!nm){ (nm?s.querySelector('#mReg'):s.querySelector('#mName')).focus(); return; }
+      const i=marks.length; marks.push(true);
+      const initials=nm.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const row=h(`<div class="stu">
+        <div class="avatar">${initials}</div>
+        <div class="nm"><b>${nm}</b><small>${reg} · added manually</small></div>
+        <div class="mark on">✓</div></div>`);
+      row.onclick=()=>{ marks[i]=!marks[i];
+        const m=row.querySelector('.mark'); m.className='mark '+(marks[i]?'on':'off'); m.textContent=marks[i]?'✓':'✕';
+        updateCounts(s); applyFilter(); };
+      rows.push(row); roster.appendChild(row);
+      updateCounts(s); applyFilter();
+      mForm.style.display='none'; s.querySelector('#mReg').value=''; s.querySelector('#mName').value='';
+      roster.scrollTop=roster.scrollHeight;
+    };
+    const roster=s.querySelector('#roster');
+    const rows=[]; let filter='all';
+    STUDENTS.forEach((st,i)=>{
+      const initials=st[0].split(' ').map(w=>w[0]).join('');
+      const row=h(`<div class="stu" style="animation-delay:${i*55}ms">
+        <div class="avatar">${initials}</div>
+        <div class="nm"><b>${st[0]}</b><small>${st[1]}${st[2]?' · '+Math.round(st[3]*100)+'% match':''}</small></div>
+        <div class="mark ${st[2]?'on':'off'}">${st[2]?'✓':'✕'}</div>
+      </div>`);
+      row.onclick=()=>{
+        marks[i]=!marks[i];
+        const m=row.querySelector('.mark');
+        m.className='mark '+(marks[i]?'on':'off'); m.textContent=marks[i]?'✓':'✕';
+        row.querySelector('small').textContent = st[1]+(marks[i]?'':' · edited');
+        updateCounts(s); applyFilter();
+      };
+      rows.push(row); roster.appendChild(row);
+    });
+    function applyFilter(){
+      rows.forEach((row,i)=>{
+        const showit = filter==='all' || (filter==='present'&&marks[i]) || (filter==='absent'&&!marks[i]);
+        row.style.display = showit ? '' : 'none';
+      });
+      s.querySelector('#statP').classList.toggle('sel',filter==='present');
+      s.querySelector('#statA').classList.toggle('sel',filter==='absent');
+      s.querySelector('#fhint').textContent =
+        filter==='present' ? 'Present only — tap Present again for all'
+        : filter==='absent' ? 'Absent only — read these names out to confirm'
+        : 'Tap Present or Absent to filter';
+    }
+    s.querySelector('#statP').onclick=()=>{ filter = filter==='present'?'all':'present'; applyFilter(); };
+    s.querySelector('#statA').onclick=()=>{ filter = filter==='absent'?'all':'absent'; applyFilter(); };
+    applyFilter();
+    setTimeout(()=>countUp(s.querySelector('#np'),present),260);
+    setTimeout(()=>countUp(s.querySelector('#na'),absent),260);
+    s.querySelector('#submitBtn').onclick=next;
+  }
+  else if(id==='done'){
+    const present=marks.filter(Boolean).length;
+    s.innerHTML=`
+      <div class="done">
+        <svg class="seal" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45"/><path d="M32 52 L45 65 L69 37"/></svg>
+        <h2 class="title" style="font-size:26px">Attendance submitted</h2>
+        <p class="sub">${present} present · ${STUDENTS.length-present} absent · synced to portal</p>
+      </div>
+      <button class="btn sec" id="againBtn">Back to Today</button>`;
+    s.querySelector('#againBtn').onclick=()=>show('today');
+  }
+  else if(id==='locate'){
+    let heads=''; const HN=20, hi=12;
+    for(let i=0;i<HN;i++) heads+=`<div class="head${i===hi?' hi':''}"></div>`;
+    s.innerHTML=`
+      <span class="eyebrow" style="color:#ff9f0a">Not enrolled</span>
+      <h2 class="title" style="font-size:23px;margin-top:4px">Spot them in the room</h2>
+      <p class="sub">${selectedClass.code} · Room ${selectedClass.room} — live camera view</p>
+      <div class="camframe"><div class="tag">Camera · Room ${selectedClass.room}</div><div class="heads">${heads}</div></div>
+      <p class="sub" style="font-size:13px;margin-top:2px">The highlighted person isn’t on the class list. Look at that spot in the room, and show them the class QR to enroll — they don’t have the app yet. Their attendance is safe: mark them present now, it links once they join.</p>
+      <div class="spacer"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn sec" id="locBack" style="flex:1">Back</button>
+        <button class="btn" id="locMark" style="flex:1">Mark present</button>
+      </div>`;
+    s.querySelector('#locBack').onclick=()=>show('review');
+    s.querySelector('#locMark').onclick=(e)=>{ e.currentTarget.textContent='Marked present ✓'; e.currentTarget.disabled=true; e.currentTarget.style.opacity=.6; };
+  }
+  else if(id==='classQR'){
+    s.innerHTML=`
+      <span class="eyebrow">Class pass</span>
+      <h2 class="title" style="font-size:24px;margin-top:4px">${selectedClass.code} · ${selectedClass.title}</h2>
+      <p class="sub">Room ${selectedClass.room} · Term 2026-ODD</p>
+      <div style="display:flex;justify-content:center;margin:20px 0 14px">
+        <div style="box-shadow:0 8px 30px -10px rgba(0,0,0,.4);border-radius:14px">${qrSVG('classattendance://class/CS301-A101',176)}</div>
+      </div>
+      <div class="toggle-row" style="margin-top:0"><div class="t">Students<small>Scan to join this class and set your face</small></div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="var(--accent)" stroke-width="1.8"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+      <div class="toggle-row"><div class="t">Teacher<small>Scan to open attendance for this class</small></div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7a2 2 0 0 1 2-2h1l1-1.5h6L16 5h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke="var(--accent)" stroke-width="1.6"/><circle cx="12" cy="12" r="3.4" stroke="var(--accent)" stroke-width="1.6"/></svg></div>
+      <div class="spacer"></div>
+      <button class="btn sec" id="qrBack">Back</button>`;
+    s.querySelector('#qrBack').onclick=()=>show('trigger');
+  }
+  else if(id==='history'){
+    const past=[
+      ['CS301 · Operating Systems','Today · 9:00',39,42],
+      ['CS410 · Networks','Wed · 11:00',36,38],
+      ['CS250 · Data Structures','Tue · 14:00',48,51],
+      ['CS301 · Operating Systems','Mon · 9:00',40,42],
+    ];
+    s.innerHTML=`<h2 class="title">History</h2>
+      <p class="sub">Every session is stored and audit-logged.</p>
+      <div class="list">${past.map(([title,when,pres,total])=>`
+        <div class="card hcard">
+          <div class="row">
+            <div style="min-width:0"><h3>${title}</h3><div class="meta">${when}</div></div>
+            <div class="hpill"><b>${pres}</b><small>of ${total}</small></div>
+          </div>
+          <div class="hbar"><i style="width:${Math.round(pres/total*100)}%"></i></div>
+        </div>`).join('')}</div>`;
+  }
+  else if(id==='settings'){
+    s.innerHTML=`<h2 class="title">Settings</h2>
+      <div class="toggle-row" style="margin-top:18px"><div class="t">Face ID to open<small>Lock the app behind Face ID</small></div><div class="sw on"></div></div>
+      <div class="toggle-row"><div class="t">Attendance reminders<small>Nudge me at class time</small></div><div class="sw on"></div></div>
+      <div class="toggle-row"><div class="t">Auto-submit high confidence<small>Skip review when every match is strong</small></div><div class="sw"></div></div>
+      <div class="field" style="margin-top:18px"><label>Signed in</label><div class="v">Prof. Rao · prof@demo.edu</div></div>
+      <div class="spacer"></div>
+      <button class="btn sec" id="soBtn">Sign out</button>`;
+    s.querySelectorAll('.sw').forEach(sw=>sw.onclick=()=>sw.classList.toggle('on'));
+    s.querySelector('#soBtn').onclick=()=>{persona='teacher';syncSeg();show('lock');};
+  }
+  // ---- STUDENT ----
+  else if(id==='enrollIntro'){
+    s.innerHTML=`
+      <div class="spacer"></div>
+      <div style="text-align:center">
+        <div style="width:84px;height:84px;margin:0 auto 20px;border-radius:26px;background:color-mix(in srgb,var(--accent) 14%,var(--surface-2));display:flex;align-items:center;justify-content:center">
+          <svg width="42" height="42" viewBox="0 0 44 44" fill="none"><circle cx="22" cy="16" r="8" stroke="var(--accent)" stroke-width="2.4"/><path d="M8 38 c0-8 6-12 14-12 s14 4 14 12" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </div>
+        <h2 class="title" style="font-size:26px">Join your class</h2>
+        <p class="sub" style="max-width:255px;margin:10px auto 0">Scan the class QR, then set your face once — the camera marks you present automatically.</p>
+      </div>
+      <div>
+        <div style="text-align:center;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:8px">Pick your theme</div>
+        <div class="themepick">
+          <div class="swatch" data-t="default" style="--dot:#0b6bff"><span class="dot"></span>Default</div>
+          <div class="swatch" data-t="girl" style="--dot:#ff3d8a"><span class="dot"></span>Pink</div>
+          <div class="swatch" data-t="boy" style="--dot:#2e7bff"><span class="dot"></span>Blue</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="s1">Get started</button>`;
+    s.querySelectorAll('.swatch').forEach(sw=>{
+      sw.classList.toggle('on', sw.dataset.t===studentAccent);
+      sw.onclick=()=>{ studentAccent=sw.dataset.t; refreshAccent();
+        s.querySelectorAll('.swatch').forEach(x=>x.classList.toggle('on',x===sw)); };
+    });
+    s.querySelector('#s1').onclick=next;
+  }
+  else if(id==='consent'){
+    s.innerHTML=`
+      <h2 class="title" style="font-size:25px">Your consent</h2>
+      <p class="sub">You control this. You can revoke it anytime and fall back to manual attendance.</p>
+      <div class="field"><label>Name</label><div class="v">Aarav Sharma</div></div>
+      <div class="field"><label>Register No</label><div class="v">REG001</div></div>
+      <div class="toggle-row">
+        <div class="t">I consent to face enrollment<small>Stored by the university, encrypted. Never leaves campus servers.</small></div>
+        <div class="sw" id="sw"></div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="s2" disabled>Continue</button>`;
+    const sw=s.querySelector('#sw'), btn=s.querySelector('#s2');
+    sw.onclick=()=>{sw.classList.toggle('on');btn.disabled=!sw.classList.contains('on');};
+    btn.onclick=next;
+  }
+  else if(id==='capture'){
+    s.innerHTML=`
+      <h2 class="title" style="font-size:25px">Center your face</h2>
+      <div class="capframe" id="cap"><div class="ovaltrace"></div></div>
+      <div class="qual" id="qual"><span id="qdot">◦</span><span id="qtxt">Looking for a face…</span></div>
+      <div class="spacer"></div>
+      <button class="btn" id="s3" disabled>Enroll my face</button>`;
+    const cap=s.querySelector('#cap'),qual=s.querySelector('#qual'),qtxt=s.querySelector('#qtxt'),btn=s.querySelector('#s3');
+    const steps=[[900,'Hold steady…'],[1700,'A little closer…'],[2500,'good']];
+    steps.forEach(([t,msg])=>setTimeout(()=>{
+      if(!s.classList.contains('active'))return;
+      if(msg==='good'){cap.classList.add('good');qual.classList.add('good');qtxt.textContent='Perfect — ready to enroll';btn.disabled=false;}
+      else qtxt.textContent=msg;
+    },t));
+    btn.onclick=next;
+  }
+  else if(id==='enrolled'){
+    s.innerHTML=`
+      <div class="done">
+        <svg class="seal" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45"/><path d="M32 52 L45 65 L69 37"/></svg>
+        <h2 class="title" style="font-size:26px">You’ve joined CS301</h2>
+        <p class="sub" style="max-width:245px">You’re on the class list. Just attend — the camera marks you present automatically.</p>
+      </div>
+      <button class="btn sec" id="s4">Done</button>`;
+    s.querySelector('#s4').onclick=()=>show('enrollIntro');
+  }
+  return s;
+}
+
+function updateCounts(s){
+  const p=marks.filter(Boolean).length;
+  s.querySelector('#np').textContent=p; s.querySelector('#na').textContent=marks.length-p;
+}
+function countUp(el,to){let n=0;const step=Math.max(1,Math.ceil(to/12));
+  const iv=setInterval(()=>{n+=step;if(n>=to){n=to;clearInterval(iv);}el.textContent=n;},34);}
+
+/* segmented control */
+const seg=document.getElementById('seg');
+seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{persona=b.dataset.persona;seg.dataset.persona=persona;
+  screensEl.innerHTML=''; refreshAccent(); show(START[persona]);});  // clear so flows don't collide
+function syncSeg(){seg.dataset.persona=persona;}
+
+document.getElementById('resetBtn').onclick=()=>{screensEl.innerHTML=''; show(START[persona]);};
+
+/* theme toggle */
+const root=document.documentElement;
+document.getElementById('themeBtn').onclick=()=>{
+  const cur=root.getAttribute('data-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  root.setAttribute('data-theme',cur==='dark'?'light':'dark');
+};
+
+/* live clock */
+function tick(){const d=new Date();document.getElementById('clock').textContent=
+  d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});}
+tick();setInterval(tick,10000);
+
+buildTabs();
+refreshAccent();
+show(START[persona]);
+</script>
