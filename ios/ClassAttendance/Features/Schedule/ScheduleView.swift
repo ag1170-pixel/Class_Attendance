@@ -6,6 +6,7 @@ struct ScheduleView: View {
     @State private var classes = DemoData.sections
     @State private var query = ""
     @State private var showScanner = false
+    @State private var live = false
 
     private var filtered: [ClassSection] {
         query.isEmpty ? classes : classes.filter {
@@ -28,6 +29,8 @@ struct ScheduleView: View {
             }
             .listStyle(.insetGrouped)
             .searchable(text: $query, prompt: "Search your classes")
+            .refreshable { await loadLive() }
+            .task { await loadLive() }
             .navigationTitle("Hi, \(auth.teacherName)")
             .navigationDestination(for: ClassSection.self) { AttendanceView(section: $0) }
             .toolbar {
@@ -43,6 +46,18 @@ struct ScheduleView: View {
                     showScanner = false
                 }
             }
+            .overlay(alignment: .bottom) {
+                Text(live ? "● Live from Supabase" : "○ Demo data (offline)")
+                    .font(.caption2).foregroundStyle(live ? Theme.present : Theme.dim)
+                    .padding(.bottom, 4)
+            }
+        }
+    }
+
+    private func loadLive() async {
+        if let fetched = try? await Supabase.fetchSections(), !fetched.isEmpty {
+            classes = fetched
+            live = true
         }
     }
 }
