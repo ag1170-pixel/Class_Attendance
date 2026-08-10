@@ -75,6 +75,7 @@ enum DemoData {
             row("RA2411026010078", "Vivaan Gupta", true, 0.79),
             row("RA2411026010079", "Isha Nair", false, nil),
             row("RA2411026010080", "Rohan Mehta", true, 0.86),
+            row("RA2411026010081", "Aditya Gupta", false, nil),   // enroll your face as this
         ]
     }
 }
