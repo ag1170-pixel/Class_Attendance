@@ -32,7 +32,7 @@ final class AttendanceViewModel: ObservableObject {
 
     func takeAttendance() async {
         phase = .processing
-        try? await Task.sleep(nanoseconds: 1_400_000_000)   // simulate 5s capture + recognition
+        try? await Task.sleep(nanoseconds: 5_000_000_000)   // the ~5s live capture window
         rows = DemoData.review()
         phase = .review
     }
@@ -57,7 +57,7 @@ struct AttendanceView: View {
         Group {
             switch vm.phase {
             case .idle: TriggerScreen(vm: vm)
-            case .processing: ProcessingScreen()
+            case .processing: LiveCaptureView()
             case .review: ReviewScreen(vm: vm)
             case .submitted: SubmittedScreen(vm: vm)
             }
@@ -92,15 +92,6 @@ private struct TriggerScreen: View {
             }.padding(.top, 2)
         }
         .padding(.vertical, 24)
-    }
-}
-
-private struct ProcessingScreen: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            ProgressView().scaleEffect(1.6)
-            Text("Recognising faces…").foregroundStyle(Theme.dim)
-        }
     }
 }
 
