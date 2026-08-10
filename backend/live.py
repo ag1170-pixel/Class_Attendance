@@ -112,12 +112,18 @@ def cmd_attend(db, args) -> int:
 
     print(f"Taking attendance from {args.source} ({enrolled} enrolled)…")
     session = svc.create_session(teacher, section, capture_path=path)
-    run_session(db, session, args.source, seconds=args.seconds)
+    present = run_session(db, session, args.source, seconds=args.seconds)
 
     _print_review(svc, session)
     if args.submit:
         svc.submit_session(session, teacher)
-        print("\n✓ Submitted and audit-logged.")
+        print("\n✓ Submitted and audit-logged (local).")
+    if args.cloud:
+        from .supabase_sink import submit_demo
+        regs = [r["register_no"] for (sid, _c) in present
+                if (r := db.query_one("SELECT register_no FROM student WHERE id=?", (sid,)))]
+        cloud_id = submit_demo(regs, capture_path=path)
+        print(f"☁ Also submitted to Supabase (shared with iPhone): {cloud_id}")
     return 0
 
 
@@ -158,6 +164,8 @@ def main() -> int:
     pa.add_argument("--source", default="webcam", help="webcam[:N] | file | rtsp://...")
     pa.add_argument("--seconds", type=float, default=5.0)
     pa.add_argument("--submit", action="store_true", help="submit immediately after review")
+    pa.add_argument("--cloud", action="store_true",
+                    help="also submit to Supabase (shared cloud DB with the iPhone)")
 
     sub.add_parser("status")
 

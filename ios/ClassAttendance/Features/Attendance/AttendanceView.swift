@@ -47,6 +47,12 @@ final class AttendanceViewModel: ObservableObject {
         rows.append(ReviewRow(studentId: register, registerNo: register, fullName: name,
                               status: .present, source: .manualOverride, confidence: nil))
     }
+
+    func submit() async {
+        let present = Set(rows.filter { $0.status == .present }.map { $0.registerNo })
+        try? await Supabase.submitAttendance(presentRegisters: present)   // write to shared cloud DB
+        phase = .submitted
+    }
 }
 
 struct AttendanceView: View {
@@ -151,7 +157,7 @@ private struct ReviewScreen: View {
             .listStyle(.insetGrouped)
             .animation(Theme.spring, value: vm.filter)
 
-            Button("Submit Attendance") { vm.phase = .submitted }
+            Button("Submit Attendance") { Task { await vm.submit() } }
                 .buttonStyle(FilledButton()).padding()
         }
         .sheet(isPresented: $showManual) {
