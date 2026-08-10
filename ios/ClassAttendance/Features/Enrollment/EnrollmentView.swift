@@ -13,6 +13,7 @@ struct EnrollmentView: View {
     @State private var registerNo = ""
     @State private var fullName = ""
     @State private var consent = false
+    @State private var enrolled = false
 
     var body: some View {
         Form {
@@ -46,9 +47,11 @@ struct EnrollmentView: View {
                         .foregroundStyle(cam.quality.isReady ? .green : .orange)
                 }
             }
-            Button("Enroll Face") { /* POST crop + consent to backend */ }
-                .disabled(!(consent && cam.quality.isReady
-                            && !registerNo.isEmpty && !fullName.isEmpty))
+            Button(enrolled ? "Enrolled ✓" : "Enroll Face") {
+                if cam.enroll(register: registerNo, name: fullName) { enrolled = true }
+            }
+            .disabled(enrolled || !(consent && cam.quality.isReady
+                        && !registerNo.isEmpty && !fullName.isEmpty))
         }
         .navigationTitle("Enroll Student")
         .onAppear { cam.start() }
@@ -70,6 +73,15 @@ final class FaceCaptureController: NSObject, ObservableObject,
     @Published var quality = Quality()
     @Published var unavailable: String?
     private let queue = DispatchQueue(label: "face.capture")
+    // Latest good face embedding, kept ready for the Enroll button.
+    private nonisolated(unsafe) var latestPrint: VNFeaturePrintObservation?
+
+    /// Store the last good face under this student. Returns false if no good frame yet.
+    func enroll(register: String, name: String) -> Bool {
+        guard let p = latestPrint else { return false }
+        FaceRecognizer.shared.enroll(register: register, name: name, print: p)
+        return true
+    }
 
     func start() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -114,6 +126,9 @@ final class FaceCaptureController: NSObject, ObservableObject,
         let request = VNDetectFaceCaptureQualityRequest()
         try? VNImageRequestHandler(cvPixelBuffer: pixel).perform([request])
         let faces = (request.results ?? [])
+        if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.5 {
+            latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox)
+        }
         Task { @MainActor in self.evaluate(faces) }
     }
 

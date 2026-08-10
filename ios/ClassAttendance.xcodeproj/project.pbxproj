@@ -24,6 +24,7 @@
 		1A0000000000000000000C15 /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F15 /* SupabaseClient.swift */; };
 		1A0000000000000000000C16 /* LiveCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F16 /* LiveCaptureView.swift */; };
 		1A0000000000000000000C17 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F17 /* ReportsView.swift */; };
+		1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F18 /* FaceRecognizer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		1A0000000000000000000F15 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/SupabaseClient.swift; sourceTree = "<group>"; };
 		1A0000000000000000000F16 /* LiveCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Attendance/LiveCaptureView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000F17 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ReportsView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F18 /* FaceRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/FaceRecognizer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +96,7 @@
 				1A0000000000000000000F15 /* SupabaseClient.swift */,
 				1A0000000000000000000F16 /* LiveCaptureView.swift */,
 				1A0000000000000000000F17 /* ReportsView.swift */,
+				1A0000000000000000000F18 /* FaceRecognizer.swift */,
 			);
 			path = ClassAttendance;
 			sourceTree = "<group>";
@@ -172,6 +175,7 @@
 				1A0000000000000000000C15 /* SupabaseClient.swift in Sources */,
 				1A0000000000000000000C16 /* LiveCaptureView.swift in Sources */,
 				1A0000000000000000000C17 /* ReportsView.swift in Sources */,
+				1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

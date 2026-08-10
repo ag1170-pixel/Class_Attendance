@@ -2,22 +2,37 @@ import SwiftUI
 import AVFoundation
 import Vision
 
-/// On-device live capture for "Take Attendance": shows the camera, detects faces
-/// with Vision, and TRACKS each face across frames (recognise-once-then-track) so
-/// a mask or a turned head doesn't drop the box. Runs fully on-device.
-/// Identity matching (who each face is) is the next milestone (Core ML embedding).
+/// One tracked person on screen: a Vision object tracker + the identity bound to
+/// them (recognise once, then the tracker carries it through masks/turns).
+final class TrackedFace {
+    var request: VNTrackObjectRequest
+    var box: CGRect
+    var register: String?
+    var name: String?
+    var present = false            // matched at the "present" threshold
+    init(box: CGRect) {
+        self.box = box
+        request = VNTrackObjectRequest(detectedObjectObservation:
+            VNDetectedObjectObservation(boundingBox: box))
+    }
+}
+
+struct LiveBox { let rect: CGRect; let name: String?; let present: Bool }
+
+/// On-device live capture: detect + track faces, recognise each ONCE (Vision
+/// feature print → FaceRecognizer), then the tracker follows them. Publishes the
+/// boxes and the set of register numbers seen present. Fully on-device.
 @MainActor
 final class FaceTracker: NSObject, ObservableObject,
                          AVCaptureVideoDataOutputSampleBufferDelegate {
     let session = AVCaptureSession()
-    @Published var boxes: [CGRect] = []      // normalized Vision rects (origin bottom-left)
-    @Published var count = 0
+    @Published var boxes: [LiveBox] = []
+    @Published var presentRegisters: Set<String> = []
     @Published var unavailable: String?
 
     private let queue = DispatchQueue(label: "face.tracker")
     private let sequence = VNSequenceRequestHandler()
-    // Touched only on the serial capture queue, so single-threaded access is safe.
-    private nonisolated(unsafe) var trackers: [VNTrackObjectRequest] = []
+    private nonisolated(unsafe) var tracks: [TrackedFace] = []   // capture-queue only
     private nonisolated(unsafe) var frame = 0
 
     func start() {
@@ -54,39 +69,57 @@ final class FaceTracker: NSObject, ObservableObject,
                                    from connection: AVCaptureConnection) {
         guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         frame += 1
-        var rects: [CGRect] = []
+        var out: [LiveBox] = []
 
-        if trackers.isEmpty || frame % 20 == 0 {
-            // Re-detect to pick up new faces / re-seed trackers.
+        if tracks.isEmpty || frame % 20 == 0 {
+            // Re-detect; carry identity from a previous track under the same spot,
+            // otherwise recognise this face once.
             let req = VNDetectFaceRectanglesRequest()
             try? VNImageRequestHandler(cvPixelBuffer: pixel, orientation: .leftMirrored).perform([req])
-            let faces = req.results ?? []
-            trackers = faces.map {
-                VNTrackObjectRequest(detectedObjectObservation:
-                    VNDetectedObjectObservation(boundingBox: $0.boundingBox))
+            let prev = tracks
+            var next: [TrackedFace] = []
+            for obs in (req.results ?? []) {
+                let box = obs.boundingBox
+                let center = CGPoint(x: box.midX, y: box.midY)
+                let tf = TrackedFace(box: box)
+                if let carried = prev.first(where: { $0.box.contains(center) }), carried.name != nil {
+                    tf.register = carried.register; tf.name = carried.name; tf.present = carried.present
+                } else if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
+                    switch FaceRecognizer.shared.match(fp) {
+                    case .present(let r, let n): tf.register = r; tf.name = n; tf.present = true
+                    case .review(let r, let n):  tf.register = r; tf.name = n; tf.present = false
+                    case .none: break
+                    }
+                }
+                next.append(tf)
+                out.append(LiveBox(rect: box, name: tf.name, present: tf.present))
             }
-            rects = faces.map { $0.boundingBox }
+            tracks = next
         } else {
-            // Track existing faces (survives mask / turned head).
-            try? sequence.perform(trackers, on: pixel, orientation: .leftMirrored)
-            var kept: [VNTrackObjectRequest] = []
-            for t in trackers {
-                if let r = t.results?.first as? VNDetectedObjectObservation, r.confidence > 0.3 {
-                    t.inputObservation = r
-                    kept.append(t)
-                    rects.append(r.boundingBox)
+            try? sequence.perform(tracks.map { $0.request }, on: pixel, orientation: .leftMirrored)
+            var kept: [TrackedFace] = []
+            for tf in tracks {
+                if let r = tf.request.results?.first as? VNDetectedObjectObservation, r.confidence > 0.3 {
+                    tf.request.inputObservation = r
+                    tf.box = r.boundingBox
+                    kept.append(tf)
+                    out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present))
                 }
             }
-            trackers = kept
+            tracks = kept
         }
 
-        let out = rects
-        Task { @MainActor in self.boxes = out; self.count = out.count }
+        let boxesOut = out
+        let present = tracks.compactMap { $0.present ? $0.register : nil }
+        Task { @MainActor in
+            self.boxes = boxesOut
+            present.forEach { self.presentRegisters.insert($0) }
+        }
     }
 }
 
-/// Camera preview + tracked-face boxes, drawn with the preview layer's own
-/// coordinate conversion so they line up regardless of aspect-fill / mirroring.
+/// Camera preview + named boxes, drawn via the preview layer's own coordinate
+/// conversion so they line up regardless of aspect-fill / mirroring.
 struct FaceCameraView: UIViewRepresentable {
     @ObservedObject var tracker: FaceTracker
 
@@ -101,21 +134,29 @@ struct FaceCameraView: UIViewRepresentable {
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
-        private var boxLayers: [CAShapeLayer] = []
+        private var overlays: [CALayer] = []
 
-        func render(_ visionBoxes: [CGRect]) {
-            boxLayers.forEach { $0.removeFromSuperlayer() }
-            boxLayers = visionBoxes.map { vb in
-                // Vision (bottom-left) -> metadata (top-left) -> layer coordinates.
-                let meta = CGRect(x: vb.minX, y: 1 - vb.maxY, width: vb.width, height: vb.height)
+        func render(_ boxes: [LiveBox]) {
+            overlays.forEach { $0.removeFromSuperlayer() }
+            overlays = []
+            for b in boxes {
+                let meta = CGRect(x: b.rect.minX, y: 1 - b.rect.maxY, width: b.rect.width, height: b.rect.height)
                 let rect = previewLayer.layerRectConverted(fromMetadataOutputRect: meta)
-                let l = CAShapeLayer()
-                l.path = UIBezierPath(roundedRect: rect, cornerRadius: 8).cgPath
-                l.strokeColor = UIColor.systemGreen.cgColor
-                l.lineWidth = 3
-                l.fillColor = UIColor.clear.cgColor
-                previewLayer.addSublayer(l)
-                return l
+                let color: UIColor = b.present ? .systemGreen : (b.name != nil ? .systemOrange : .systemYellow)
+
+                let box = CAShapeLayer()
+                box.path = UIBezierPath(roundedRect: rect, cornerRadius: 8).cgPath
+                box.strokeColor = color.cgColor; box.lineWidth = 3; box.fillColor = UIColor.clear.cgColor
+                previewLayer.addSublayer(box); overlays.append(box)
+
+                let label = CATextLayer()
+                label.string = b.name ?? "Not enrolled"
+                label.fontSize = 13; label.foregroundColor = UIColor.white.cgColor
+                label.backgroundColor = color.cgColor; label.alignmentMode = .center
+                label.contentsScale = UIScreen.main.scale
+                label.frame = CGRect(x: rect.minX, y: max(0, rect.minY - 20),
+                                     width: max(80, rect.width), height: 20)
+                previewLayer.addSublayer(label); overlays.append(label)
             }
         }
     }
@@ -123,7 +164,7 @@ struct FaceCameraView: UIViewRepresentable {
 
 /// Live capture shown during the ~5-second attendance window.
 struct LiveCaptureView: View {
-    @StateObject private var tracker = FaceTracker()
+    @ObservedObject var tracker: FaceTracker
 
     var body: some View {
         ZStack {
@@ -139,7 +180,7 @@ struct LiveCaptureView: View {
                 FaceCameraView(tracker: tracker).ignoresSafeArea()
                 VStack {
                     Spacer()
-                    Label("Recognising… tracking \(tracker.count) face\(tracker.count == 1 ? "" : "s")",
+                    Label("Recognising… \(tracker.presentRegisters.count) present · tracking \(tracker.boxes.count)",
                           systemImage: "viewfinder")
                         .font(.subheadline.bold())
                         .padding(.horizontal, 16).padding(.vertical, 10)

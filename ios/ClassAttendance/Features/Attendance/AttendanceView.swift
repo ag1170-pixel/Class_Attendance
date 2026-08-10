@@ -30,10 +30,15 @@ final class AttendanceViewModel: ObservableObject {
         }
     }
 
-    func takeAttendance() async {
-        phase = .processing
-        try? await Task.sleep(nanoseconds: 5_000_000_000)   // the ~5s live capture window
-        rows = DemoData.review()
+    /// Build the review from the on-device recogniser's present set. Falls back
+    /// to the demo pre-fill if nobody is enrolled/recognised yet.
+    func finish(present: Set<String>) {
+        let roster = DemoData.review()
+        rows = present.isEmpty ? roster : roster.map { r in
+            ReviewRow(studentId: r.studentId, registerNo: r.registerNo, fullName: r.fullName,
+                      status: present.contains(r.registerNo) ? .present : .absent,
+                      source: .auto, confidence: present.contains(r.registerNo) ? 0.9 : nil)
+        }
         phase = .review
     }
 
@@ -57,13 +62,14 @@ final class AttendanceViewModel: ObservableObject {
 
 struct AttendanceView: View {
     @StateObject private var vm: AttendanceViewModel
+    @StateObject private var tracker = FaceTracker()
     init(section: ClassSection) { _vm = StateObject(wrappedValue: AttendanceViewModel(section: section)) }
 
     var body: some View {
         Group {
             switch vm.phase {
-            case .idle: TriggerScreen(vm: vm)
-            case .processing: LiveCaptureView()
+            case .idle: TriggerScreen(vm: vm, onStart: startCapture)
+            case .processing: LiveCaptureView(tracker: tracker)
             case .review: ReviewScreen(vm: vm)
             case .submitted: SubmittedScreen(vm: vm)
             }
@@ -72,12 +78,22 @@ struct AttendanceView: View {
         .navigationTitle(vm.section.courseCode)
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    private func startCapture() {
+        tracker.presentRegisters = []
+        vm.phase = .processing
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)   // the ~5s capture window
+            vm.finish(present: tracker.presentRegisters)
+        }
+    }
 }
 
 // MARK: - Trigger
 
 private struct TriggerScreen: View {
     @ObservedObject var vm: AttendanceViewModel
+    let onStart: () -> Void
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -89,7 +105,7 @@ private struct TriggerScreen: View {
                 .font(.footnote).foregroundStyle(Theme.dim)
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
             Spacer()
-            Button { Task { await vm.takeAttendance() } } label: {
+            Button { onStart() } label: {
                 Label("Take Attendance", systemImage: "checkmark.seal")
             }
             .buttonStyle(FilledButton()).padding(.horizontal, 24)
