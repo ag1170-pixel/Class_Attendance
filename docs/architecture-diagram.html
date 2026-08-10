@@ -1,0 +1,102 @@
+<title>Class Attendance — Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#eef0f3; --card:#fff; --ink:#1d1d1f; --dim:#6e6e73; --line:rgba(0,0,0,.1);
+    --accent:#0b6bff; --present:#34c759; --review:#ff9f0a;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0a0a0c;--card:#161619;--ink:#f5f5f7;--dim:#98989f;--line:rgba(255,255,255,.12);
+      --accent:#0a84ff;--present:#32d74b;--review:#ffa60a;}
+  }
+  :root[data-theme="light"]{--bg:#eef0f3;--card:#fff;--ink:#1d1d1f;--dim:#6e6e73;--line:rgba(0,0,0,.1);--accent:#0b6bff;}
+  :root[data-theme="dark"]{--bg:#0a0a0c;--card:#161619;--ink:#f5f5f7;--dim:#98989f;--line:rgba(255,255,255,.12);--accent:#0a84ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);padding:32px 20px 64px;
+    display:flex;flex-direction:column;align-items:center}
+  header{max-width:1000px;width:100%;text-align:center;margin-bottom:20px}
+  h1{font-size:26px;font-weight:720;letter-spacing:-.02em;margin:0}
+  header p{color:var(--dim);margin:8px 0 0;font-size:15px;line-height:1.5}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;
+    max-width:1000px;width:100%;overflow-x:auto;box-shadow:0 20px 50px -30px rgba(0,0,0,.5)}
+  .mermaid{display:flex;justify-content:center;min-width:640px}
+  .legend{max-width:1000px;width:100%;display:flex;flex-wrap:wrap;gap:16px;margin-top:18px;
+    font-size:13.5px;color:var(--dim);justify-content:center}
+  .legend b{color:var(--ink);font-weight:600}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:5px}
+  .note{max-width:1000px;width:100%;margin-top:22px;font-size:14px;color:var(--dim);line-height:1.6}
+  .note b{color:var(--ink)}
+  code{background:var(--line);padding:1px 6px;border-radius:6px;font-size:.9em}
+</style>
+
+<header>
+  <h1>Class Attendance — System Architecture</h1>
+  <p>Face-recognition attendance across an iPhone app, a Mac/​server recognition engine,
+     and a shared Supabase cloud database. Recognise a person <b>once</b>, then <b>track</b>
+     them — a mask or a turned head never loses their mark.</p>
+</header>
+
+<div class="card">
+<pre class="mermaid">
+flowchart TB
+
+subgraph PHONE["📱 iPhone app — SwiftUI, on-device"]
+  direction TB
+  L["Login · Face ID"] --> TD["Today · your classes"]
+  TD --> TA["Take Attendance"]
+  TA --> LC["Live camera<br/>Vision detect + track<br/>recognise once, then track"]
+  LC --> RV["Review<br/>Present · Needs review · Absent<br/>locate unenrolled · add by reg-no"]
+  RV --> SUB["Submit"]
+  EN["Enroll a student<br/>Vision face print"] --> ODS[("On-device face store<br/>never leaves the phone")]
+  LC -. match .-> ODS
+  RPT["Reports · attendance %<br/>shortage flags"]
+end
+
+subgraph MAC["💻 Mac / server engine — Python, OpenCV"]
+  direction TB
+  CAM["Webcam · clip · RTSP"] --> DET["YuNet detect<br/>+ CSRT track"]
+  DET --> EMB["SFace embedding"]
+  EMB --> MM["Dual-threshold match<br/>+ margin + temporal vote"]
+  MM --> MREV["Present · Review · Absent"]
+end
+
+subgraph CLOUD["☁️ Supabase — Postgres + pgvector, row-level security"]
+  direction TB
+  SEC["sections · students · roster · schedule"]
+  ATT["attendance_session · attendance_record"]
+  BIO["face_template · consent<br/>🔒 locked, on-prem"]
+end
+
+ROOM["🎥 Classroom CCTV<br/>ONVIF Profile G clip"] -. future .-> CAM
+
+TD -->|reads live| SEC
+SUB -->|writes| ATT
+MREV -->|--cloud writes| ATT
+RPT -->|reads| ATT
+
+classDef present stroke:#34c759,stroke-width:2px;
+classDef review stroke:#ff9f0a,stroke-width:2px;
+classDef accent stroke:#0b6bff,stroke-width:2px;
+class LC,MM accent;
+class RV,MREV review;
+class SUB,ATT present;
+</pre>
+</div>
+
+<div class="legend">
+  <span><span class="dot" style="background:var(--accent)"></span><b>Recognition</b> — detect, track, match</span>
+  <span><span class="dot" style="background:var(--review)"></span><b>Review</b> — human confirms; nobody dropped</span>
+  <span><span class="dot" style="background:var(--present)"></span><b>Stored</b> — attendance to the cloud</span>
+</div>
+
+<div class="note">
+  <p><b>The accuracy guarantee:</b> a student who appears is either auto-<b>present</b> or flagged
+  <b>needs-review</b> — the only way to be marked absent is to clear no frame of the clip. The teacher
+  review is the final safety net, so no one's attendance is silently lost.</p>
+  <p><b>Privacy:</b> face embeddings stay on the device (iPhone) or on the institution's own server;
+  only the present/absent <i>result</i> goes to the cloud. <code>face_template</code> and
+  <code>consent</code> are locked by row-level security.</p>
+  <p><b>Same formula everywhere:</b> iPhone (Vision / Core ML) and Mac (SFace / ArcFace) run the identical
+  recognise-once-then-track + dual-threshold rule — only the embedding model differs.</p>
+</div>
