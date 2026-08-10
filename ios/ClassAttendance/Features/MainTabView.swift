@@ -2,16 +2,19 @@ import SwiftUI
 
 /// Root after login — the four teacher tabs (matches the prototype).
 struct MainTabView: View {
+    @State private var sel = ProcessInfo.processInfo.arguments.contains("-tab-reports") ? 2 : 0
     var body: some View {
-        TabView {
+        TabView(selection: $sel) {
             ScheduleView()
-                .tabItem { Label("Today", systemImage: "calendar") }
+                .tabItem { Label("Today", systemImage: "calendar") }.tag(0)
             TimetableView()
-                .tabItem { Label("Timetable", systemImage: "square.grid.3x3") }
+                .tabItem { Label("Timetable", systemImage: "square.grid.3x3") }.tag(1)
+            ReportsView()
+                .tabItem { Label("Reports", systemImage: "chart.bar") }.tag(2)
             HistoryView()
-                .tabItem { Label("History", systemImage: "clock") }
+                .tabItem { Label("History", systemImage: "clock") }.tag(3)
             SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tabItem { Label("Settings", systemImage: "gearshape") }.tag(4)
         }
         .tint(Theme.accent)
     }

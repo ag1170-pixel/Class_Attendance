@@ -5,6 +5,10 @@ import Foundation
 enum DemoData {
     static let today = "Fri"
 
+    /// Minimum attendance % required — configurable per institution (many
+    /// universities/schools use 75%; set this per tenant in production).
+    static let minAttendancePercent = 75
+
     static let sections: [ClassSection] = [
         ClassSection(id: "CS301", courseCode: "CS301", courseTitle: "Operating Systems",
                      roomCode: "A-101", startTime: "09:00", endTime: "10:00",
@@ -31,6 +35,23 @@ enum DemoData {
         let id = UUID()
         let title: String, when: String, present: Int, total: Int
     }
+
+    struct StudentReport: Identifiable, Hashable {
+        let id = UUID()
+        let name: String, register: String, attended: Int, held: Int
+        var pct: Int { held == 0 ? 0 : attended * 100 / held }
+        var isShort: Bool { pct < minAttendancePercent }   // configurable per institution
+    }
+
+    static let reports: [StudentReport] = [
+        .init(name: "Aarav Sharma", register: "RA2411026010074", attended: 28, held: 30),
+        .init(name: "Diya Patel",   register: "RA2411026010075", attended: 26, held: 30),
+        .init(name: "Kabir Singh",  register: "RA2411026010076", attended: 20, held: 30),
+        .init(name: "Ananya Rao",   register: "RA2411026010077", attended: 29, held: 30),
+        .init(name: "Vivaan Gupta", register: "RA2411026010078", attended: 22, held: 30),
+        .init(name: "Isha Nair",    register: "RA2411026010079", attended: 18, held: 30),
+        .init(name: "Rohan Mehta",  register: "RA2411026010080", attended: 27, held: 30),
+    ]
 
     static let history: [PastSession] = [
         .init(title: "CS301 · Operating Systems", when: "Today · 9:00", present: 39, total: 42),

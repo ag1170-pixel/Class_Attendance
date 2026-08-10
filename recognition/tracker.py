@@ -37,7 +37,8 @@ class Track:
     student_id: Optional[str] = None
     best_similarity: float = 0.0
     best_inter_eye: float = 0.0
-    identity_frames: int = 0           # frames the identity was confirmed
+    identity_frames: int = 0           # frames the identity matched (>= LOW)
+    confident_frames: int = 0          # frames the match was confident (>= HIGH + margin)
 
 
 class IoUTracker:

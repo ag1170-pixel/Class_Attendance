@@ -43,21 +43,23 @@ def main() -> int:
         src.release()
 
     present = [r for r in results if r.status == "present"]
+    review = [r for r in results if r.status == "review"]
     absent = [r for r in results if r.status == "absent"]
 
     if args.json:
         print(json.dumps({
             "present": [r.__dict__ for r in present],
+            "review": [r.__dict__ for r in review],
             "absent": [r.__dict__ for r in absent],
             "stats": stats.__dict__,
         }, indent=2))
         return 0
 
+    marks = {"present": "✓ PRES", "review": "~ REVW", "absent": "✗ ABS "}
     print("\n─── ATTENDANCE (pre-filled — teacher reviews before submit) ───")
     print(f"{'STATUS':8} {'ID':6} {'NAME':22} {'CONF':6} {'FRAMES':6} {'EYE_PX'}")
     for r in results:
-        mark = "✓ PRES" if r.status == "present" else "✗ ABS "
-        print(f"{mark:8} {r.student_id:6} {r.name:22} "
+        print(f"{marks[r.status]:8} {r.student_id:6} {r.name:22} "
               f"{r.confidence:<6} {r.frames_seen:<6} {r.best_inter_eye_px}")
 
     print("\n─── CAPTURE STATS (feasibility evidence) ───")
@@ -67,7 +69,7 @@ def main() -> int:
           f"(cleared {config.MIN_INTEREYE_PX}px inter-eye gate)")
     print(f"  median inter-eye px  : {stats.median_inter_eye_px:.1f}  "
           f"(need ~{config.RELIABLE_INTEREYE_PX}px for reliable ID)")
-    print(f"\n  Present: {len(present)}   Absent: {len(absent)}")
+    print(f"\n  Present: {len(present)}   Needs review: {len(review)}   Absent: {len(absent)}")
     return 0
 
 

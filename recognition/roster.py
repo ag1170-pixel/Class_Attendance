@@ -71,17 +71,28 @@ class Roster:
         return len(self._students)
 
     def match(self, embedding: np.ndarray) -> Tuple[Optional[str], Optional[str], float]:
-        """Return (student_id, name, best_similarity) for the closest enrolled
-        student, or (None, None, best) if nothing clears the threshold.
+        """Closest enrolled student above the auto-present threshold, else
+        (None, None, best). Kept for simple callers; the pipeline uses
+        match_detailed() for the dual-threshold + margin rule."""
+        sid, name, s1, _s2 = self.match_detailed(embedding)
+        if s1 >= config.COSINE_MATCH_HIGH:
+            return sid, name, s1
+        return None, None, s1
 
+    def match_detailed(self, embedding: np.ndarray):
+        """Return (best_sid, best_name, s1, s2): the best-matching student's
+        score s1 and the runner-up student's score s2 (for the margin test).
         Matching is scoped to THIS roster only (30-60 faces) -> fast + precise.
         """
-        best_sid, best_name, best_sim = None, None, -1.0
-        for s in self._students.values():
-            for emb in s.embeddings:
-                sim = FaceEngine.cosine(embedding, emb)
-                if sim > best_sim:
-                    best_sid, best_name, best_sim = s.student_id, s.name, sim
-        if best_sim >= config.COSINE_MATCH_THRESHOLD:
-            return best_sid, best_name, best_sim
-        return None, None, best_sim
+        # Best cosine per student (across their templates).
+        per_student = [
+            (s.student_id, s.name,
+             max((FaceEngine.cosine(embedding, e) for e in s.embeddings), default=-1.0))
+            for s in self._students.values()
+        ]
+        if not per_student:
+            return None, None, -1.0, -1.0
+        per_student.sort(key=lambda t: t[2], reverse=True)
+        sid, name, s1 = per_student[0]
+        s2 = per_student[1][2] if len(per_student) > 1 else -1.0
+        return sid, name, s1, s2

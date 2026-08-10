@@ -25,7 +25,7 @@ from .tracker import IoUTracker, Track
 class AttendanceResult:
     student_id: str
     name: str
-    status: str                 # "present" | "absent"
+    status: str                 # "present" | "review" | "absent"
     confidence: float           # best cosine similarity seen
     frames_seen: int
     best_inter_eye_px: float
@@ -69,15 +69,20 @@ class RecognitionPipeline:
                 stats.faces_recognizable += 1
 
                 emb = self.engine.embed(frame, face)
-                sid, _name, sim = self.roster.match(emb)
-                if sid is not None:
-                    # Bind / reinforce identity on this track (name resolved from
-                    # the roster at aggregation time, so we only store the id).
-                    if track.student_id is None or sim > track.best_similarity:
-                        track.student_id = sid
-                    track.best_similarity = max(track.best_similarity, sim)
-                    track.best_inter_eye = max(track.best_inter_eye, ied)
-                    track.identity_frames += 1
+                sid, _name, s1, s2 = self.roster.match_detailed(emb)
+                if sid is None or s1 < config.COSINE_MATCH_LOW:
+                    continue   # below the review floor -> leave face unknown
+                margin = s1 - s2
+                confident = s1 >= config.COSINE_MATCH_HIGH and margin >= config.MATCH_MARGIN
+                # Bind / reinforce identity on this track (name resolved from the
+                # roster at aggregation time, so we only store the id).
+                if track.student_id is None or s1 > track.best_similarity:
+                    track.student_id = sid
+                track.best_similarity = max(track.best_similarity, s1)
+                track.best_inter_eye = max(track.best_inter_eye, ied)
+                track.identity_frames += 1
+                if confident:
+                    track.confident_frames += 1
 
         if inter_eye_samples:
             stats.median_inter_eye_px = float(np.median(inter_eye_samples))
@@ -90,8 +95,6 @@ class RecognitionPipeline:
         for t in tracks:
             if t.student_id is None:
                 continue
-            if t.identity_frames < config.MIN_FRAMES_PRESENT:
-                continue
             cur = best.get(t.student_id)
             if cur is None or t.best_similarity > cur.best_similarity:
                 best[t.student_id] = t
@@ -99,26 +102,22 @@ class RecognitionPipeline:
         results: List[AttendanceResult] = []
         for s in self.roster.students:
             t = best.get(s.student_id)
-            if t is not None:
-                results.append(
-                    AttendanceResult(
-                        student_id=s.student_id,
-                        name=s.name,
-                        status="present",
-                        confidence=round(t.best_similarity, 3),
-                        frames_seen=t.identity_frames,
-                        best_inter_eye_px=round(t.best_inter_eye, 1),
-                    )
-                )
+            # present = confident on enough frames; review = matched but unsure;
+            # absent = never cleared the review floor. Nobody is silently dropped.
+            if t is not None and t.confident_frames >= config.MIN_FRAMES_PRESENT:
+                status = "present"
+            elif t is not None and t.identity_frames >= 1:
+                status = "review"
             else:
-                results.append(
-                    AttendanceResult(
-                        student_id=s.student_id,
-                        name=s.name,
-                        status="absent",
-                        confidence=0.0,
-                        frames_seen=0,
-                        best_inter_eye_px=0.0,
-                    )
+                status = "absent"
+            results.append(
+                AttendanceResult(
+                    student_id=s.student_id,
+                    name=s.name,
+                    status=status,
+                    confidence=round(t.best_similarity, 3) if t else 0.0,
+                    frames_seen=t.identity_frames if t else 0,
+                    best_inter_eye_px=round(t.best_inter_eye, 1) if t else 0.0,
                 )
+            )
         return results

@@ -25,9 +25,13 @@ DETECT_NMS_THRESHOLD = 0.3
 DETECT_TOP_K = 5000
 
 # ── Recognition thresholds (see docs/02_ALGORITHM.md §4) ─────────────────────
-# SFace uses cosine similarity; OpenCV's reference match threshold is 0.363.
-# We keep it configurable and favour precision on "present".
-COSINE_MATCH_THRESHOLD = 0.363
+# Dual-threshold matching so borderline students are surfaced for review, never
+# silently dropped (see docs/06_ACCURACY.md). Cosine similarity on L2-normalized
+# embeddings. Tune per room from labelled footage.
+COSINE_MATCH_HIGH = 0.45      # >= this (with margin) -> auto "present"
+COSINE_MATCH_LOW = 0.30       # >= this but < HIGH   -> "needs review" (not dropped)
+MATCH_MARGIN = 0.06           # best match must beat the runner-up by this much
+COSINE_MATCH_THRESHOLD = COSINE_MATCH_HIGH   # back-compat alias
 
 # Minimum inter-eye distance (pixels) to TRUST a frame for identity binding.
 # Below this we keep tracking but don't (re)bind identity. This is the pixel
