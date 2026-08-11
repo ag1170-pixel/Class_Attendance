@@ -78,7 +78,7 @@ final class FaceTracker: NSObject, ObservableObject,
         
         self.session.sessionPreset = .medium  // 480p — much lighter than .high for face tracking
         guard
-          let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition),
+          let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition) ?? AVCaptureDevice.default(for: .video),
           let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input)
         else {
           Task { @MainActor in self.unavailable = "No camera found." }

@@ -71,8 +71,11 @@ final class AttendanceViewModel: ObservableObject {
 
     func submit() async {
         let present = Set(rows.filter { $0.status == .present }.map { $0.registerNo })
-        try? await Supabase.submitAttendance(presentRegisters: present)   // write to shared cloud DB
-        phase = .submitted
+        phase = .submitted // Mark as submitted instantly so UI doesn't hang!
+        Task {
+            // Write to shared cloud DB in background
+            try? await Supabase.submitAttendance(presentRegisters: present)
+        }
     }
 }
 
