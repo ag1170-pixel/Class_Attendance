@@ -183,7 +183,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
     @Published var frozenImage: UIImage?
     private let queue = DispatchQueue(label: "face.capture")
     // Latest good face embedding, kept ready for the Enroll button.
-    private nonisolated(unsafe) var latestPrint: [Float]?
+    private nonisolated(unsafe) var latestPrint: VNFeaturePrintObservation?
     private nonisolated(unsafe) var latestPixelBuffer: CVPixelBuffer?
     private nonisolated(unsafe) var frameCount: Int = 0
 
@@ -279,8 +279,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
                               symbol: "camera.metering.center.weighted")
         } else {
             quality = Quality(isReady: true,
-                              message: "Good — ready to capture",
-                              symbol: "checkmark.circle.fill")
+                              message: "Ready to enroll", symbol: "checkmark.circle")
         }
     }
 }

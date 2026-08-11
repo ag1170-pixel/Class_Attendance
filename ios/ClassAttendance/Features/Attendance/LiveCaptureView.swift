@@ -132,7 +132,7 @@ final class FaceTracker: NSObject, ObservableObject,
       var bestScoreForReg: [String: Float] = [:]
       for tf in next {
           if let reg = tf.register {
-              bestScoreForReg[reg] = max(bestScoreForReg[reg] ?? -1.0, tf.score)
+              bestScoreForReg[reg] = max(bestScoreForReg[reg] ?? -Float.greatestFiniteMagnitude, tf.score)
           }
       }
       for tf in next {
