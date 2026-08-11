@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import Vision
+import CoreImage
 
 /// One-time face enrollment (the "scan once" step). Runs the camera and uses the
 /// Vision framework ON-DEVICE to gate capture on face quality — the app only

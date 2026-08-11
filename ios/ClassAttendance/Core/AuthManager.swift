@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import LocalAuthentication
 
 /// Biometric unlock for the teacher (Face ID / Touch ID) + simple session state.
