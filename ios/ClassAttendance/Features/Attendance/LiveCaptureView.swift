@@ -105,12 +105,10 @@ final class FaceTracker: NSObject, ObservableObject,
         let box = obs.boundingBox
         let center = CGPoint(x: box.midX, y: box.midY)
         let tf = TrackedFace(box: box)
-        if let carried = prev.first(where: { $0.box.contains(center) }), carried.name != nil {
-          tf.register = carried.register
-          tf.name = carried.name
-          tf.present = carried.present
-          tf.score = carried.score
-        } else if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
+        // Always run the recognizer on detection frames (every 30 frames). 
+        // Do not blindly carry over identity just because the box overlaps, 
+        // otherwise a new person standing where the old person was will steal their identity!
+        if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
           switch FaceRecognizer.shared.match(fp) {
           case .present(let r, let n, let score):
             tf.register = r
