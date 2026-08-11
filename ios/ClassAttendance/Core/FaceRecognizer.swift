@@ -19,8 +19,8 @@ final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
     // Tune on-device: below `present` = confident; below `review` = surface to teacher.
-    var distPresent: Float = 0.6
-    var distReview: Float = 0.9
+    var distPresent: Float = 12.0
+    var distReview: Float = 18.0
 
     struct Enrolled { let register: String; let name: String; var prints: [VNFeaturePrintObservation] }
     enum Result { case present(String, String), review(String, String), none }
@@ -40,7 +40,7 @@ final class FaceRecognizer {
     func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> VNFeaturePrintObservation? {
         let ci = CIImage(cvPixelBuffer: pixelBuffer)
         let px = VNImageRectForNormalizedRect(faceBox, Int(ci.extent.width), Int(ci.extent.height))
-            .insetBy(dx: -20, dy: -20)                 // a little context around the face
+            .insetBy(dx: -40, dy: -40)                 // wider context for better feature prints
         let crop = ci.cropped(to: px.intersection(ci.extent))
         guard !crop.extent.isEmpty else { return nil }
         let req = VNGenerateImageFeaturePrintRequest()
@@ -57,6 +57,19 @@ final class FaceRecognizer {
         enrolled[register] = e
         saveLocked()
         lock.unlock()
+    }
+    
+    func delete(register: String) {
+        lock.lock()
+        enrolled.removeValue(forKey: register)
+        saveLocked()
+        lock.unlock()
+    }
+    
+    func enrolledList() -> [(register: String, name: String)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return enrolled.values.map { (register: $0.register, name: $0.name) }.sorted { $0.name < $1.name }
     }
 
     // MARK: match (dual-threshold)

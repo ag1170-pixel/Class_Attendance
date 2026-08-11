@@ -34,7 +34,7 @@ final class AttendanceViewModel: ObservableObject {
     /// to the demo pre-fill if nobody is enrolled/recognised yet.
     func finish(present: Set<String>) {
         let roster = DemoData.review()
-        rows = present.isEmpty ? roster : roster.map { r in
+        rows = roster.map { r in
             ReviewRow(studentId: r.studentId, registerNo: r.registerNo, fullName: r.fullName,
                       status: present.contains(r.registerNo) ? .present : .absent,
                       source: .auto, confidence: present.contains(r.registerNo) ? 0.9 : nil)
@@ -69,7 +69,7 @@ struct AttendanceView: View {
         Group {
             switch vm.phase {
             case .idle: TriggerScreen(vm: vm, onStart: startCapture)
-            case .processing: LiveCaptureView(tracker: tracker)
+            case .processing: LiveCaptureView(tracker: tracker) { present in vm.finish(present: present) }
             case .review: ReviewScreen(vm: vm)
             case .submitted: SubmittedScreen(vm: vm)
             }
@@ -82,10 +82,8 @@ struct AttendanceView: View {
     private func startCapture() {
         tracker.presentRegisters = []
         vm.phase = .processing
-        Task {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)   // the ~5s capture window
-            vm.finish(present: tracker.presentRegisters)
-        }
+        // LiveCaptureView handles its own 10-second timer with Start button + countdown.
+        // Its onComplete callback calls vm.finish(present:) when the teacher taps Submit.
     }
 }
 
@@ -101,7 +99,7 @@ private struct TriggerScreen: View {
             Text(vm.section.courseTitle).font(.title2.bold())
             Text("\(vm.section.building ?? "") · Room \(vm.section.roomCode)")
                 .foregroundStyle(Theme.dim)
-            Text("You're in the room. Captures ~5 seconds from the room camera and marks who's present.")
+            Text("You're in the room. Tap Start, the camera runs for 10 seconds and marks who's present.")
                 .font(.footnote).foregroundStyle(Theme.dim)
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
             Spacer()

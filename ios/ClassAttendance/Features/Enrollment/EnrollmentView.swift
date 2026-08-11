@@ -13,7 +13,9 @@ struct EnrollmentView: View {
     @State private var registerNo = ""
     @State private var fullName = ""
     @State private var consent = false
-    @State private var enrolled = false
+    @State private var enrollCount = 0
+    @State private var showSuccess = false
+    @State private var enrolledList: [(register: String, name: String)] = []
 
     var body: some View {
         Form {
@@ -29,9 +31,17 @@ struct EnrollmentView: View {
             }
             Section("Capture") {
                 ZStack {
-                    CameraPreview(session: cam.session)
-                        .frame(height: 260)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    if let frozen = cam.frozenImage {
+                        // Show frozen captured frame
+                        Image(uiImage: frozen)
+                            .resizable().scaledToFill()
+                            .frame(height: 260)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        CameraPreview(session: cam.session)
+                            .frame(height: 260)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
                     if let msg = cam.unavailable {
                         RoundedRectangle(cornerRadius: 12).fill(Theme.surface2).frame(height: 260)
                         VStack(spacing: 8) {
@@ -43,18 +53,81 @@ struct EnrollmentView: View {
                     }
                 }
                 if cam.unavailable == nil {
-                    Label(cam.quality.message, systemImage: cam.quality.symbol)
-                        .foregroundStyle(cam.quality.isReady ? .green : .orange)
+                    if cam.frozenImage != nil {
+                        // Frozen state — show confirm/retake
+                        HStack {
+                            Button { cam.unfreeze() } label: {
+                                Label("Retake", systemImage: "arrow.counterclockwise")
+                            }
+                            .buttonStyle(.bordered)
+                            Spacer()
+                            Label("Ready to enroll", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                    } else {
+                        // Live state — show quality + capture button
+                        Label(cam.quality.message, systemImage: cam.quality.symbol)
+                            .foregroundStyle(cam.quality.isReady ? .green : .orange)
+                        if cam.quality.isReady {
+                            Button { cam.freeze() } label: {
+                                Label("Capture Photo", systemImage: "camera.shutter.button")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
                 }
             }
-            Button(enrolled ? "Enrolled ✓" : "Enroll Face") {
-                if cam.enroll(register: registerNo, name: fullName) { enrolled = true }
+
+            if enrollCount > 0 {
+                Section("Enrolled Photos") {
+                    HStack {
+                        Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.present)
+                        Text("\(enrollCount) photo\(enrollCount == 1 ? "" : "s") enrolled")
+                        Spacer()
+                        Button("Add Another") {
+                            cam.unfreeze()
+                        }
+                        .font(.subheadline).foregroundStyle(Theme.accent)
+                    }
+                }
             }
-            .disabled(enrolled || !(consent && cam.quality.isReady
-                        && !registerNo.isEmpty && !fullName.isEmpty))
+
+            Button(showSuccess ? "Enrolled ✓" : (enrollCount > 0 ? "Add This Photo" : "Enroll Face")) {
+                if cam.enroll(register: registerNo, name: fullName) {
+                    enrollCount += 1
+                    showSuccess = true
+                    // Auto-unfreeze after a moment so they can add more
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        showSuccess = false
+                    }
+                    enrolledList = FaceRecognizer.shared.enrolledList()
+                }
+            }
+            .disabled(showSuccess || cam.frozenImage == nil
+                      || !(consent && !registerNo.isEmpty && !fullName.isEmpty))
+            
+            if !enrolledList.isEmpty {
+                Section("All Enrolled Students") {
+                    ForEach(enrolledList, id: \.register) { student in
+                        VStack(alignment: .leading) {
+                            Text(student.name)
+                            Text(student.register).font(.caption).foregroundStyle(Theme.dim)
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for i in indexSet {
+                            FaceRecognizer.shared.delete(register: enrolledList[i].register)
+                        }
+                        enrolledList = FaceRecognizer.shared.enrolledList()
+                    }
+                }
+            }
         }
         .navigationTitle("Enroll Student")
-        .onAppear { cam.start() }
+        .onAppear {
+            cam.start()
+            enrolledList = FaceRecognizer.shared.enrolledList()
+        }
         .onDisappear { cam.stop() }
     }
 }
@@ -72,9 +145,27 @@ final class FaceCaptureController: NSObject, ObservableObject,
     let session = AVCaptureSession()
     @Published var quality = Quality()
     @Published var unavailable: String?
+    @Published var frozenImage: UIImage?
     private let queue = DispatchQueue(label: "face.capture")
     // Latest good face embedding, kept ready for the Enroll button.
     private nonisolated(unsafe) var latestPrint: VNFeaturePrintObservation?
+    private nonisolated(unsafe) var latestPixelBuffer: CVPixelBuffer?
+    private nonisolated(unsafe) var frameCount: Int = 0
+
+    /// Freeze the current frame for review before enrolling
+    func freeze() {
+        guard let pb = latestPixelBuffer else { return }
+        let ci = CIImage(cvPixelBuffer: pb)
+        let ctx = CIContext()
+        if let cg = ctx.createCGImage(ci, from: ci.extent) {
+            frozenImage = UIImage(cgImage: cg)
+        }
+    }
+
+    /// Unfreeze to go back to live camera
+    func unfreeze() {
+        frozenImage = nil
+    }
 
     /// Store the last good face under this student. Returns false if no good frame yet.
     func enroll(register: String, name: String) -> Bool {
@@ -102,7 +193,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
     private func configure() {
         unavailable = nil
         guard session.inputs.isEmpty else { queue.async { self.session.startRunning() }; return }
-        session.sessionPreset = .high
+        session.sessionPreset = .medium        // 480p — much lighter than .high
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera,
                                                    for: .video, position: .front),
               let input = try? AVCaptureDeviceInput(device: device),
@@ -113,6 +204,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
         session.addInput(input)
         let output = AVCaptureVideoDataOutput()
         output.setSampleBufferDelegate(self, queue: queue)
+        output.alwaysDiscardsLateVideoFrames = true
         if session.canAddOutput(output) { session.addOutput(output) }
         queue.async { self.session.startRunning() }
     }
@@ -122,11 +214,16 @@ final class FaceCaptureController: NSObject, ObservableObject,
     nonisolated func captureOutput(_ output: AVCaptureOutput,
                                    didOutput sampleBuffer: CMSampleBuffer,
                                    from connection: AVCaptureConnection) {
+        frameCount += 1
+        // Skip frames to reduce CPU load — process every 3rd frame
+        guard frameCount % 3 == 0 else { return }
+
         guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let request = VNDetectFaceCaptureQualityRequest()
         try? VNImageRequestHandler(cvPixelBuffer: pixel).perform([request])
         let faces = (request.results ?? [])
-        if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.5 {
+        if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.35 {
+            latestPixelBuffer = pixel
             latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox)
         }
         Task { @MainActor in self.evaluate(faces) }
@@ -141,13 +238,13 @@ final class FaceCaptureController: NSObject, ObservableObject,
             quality = Quality(isReady: false,
                               message: "Multiple faces — one student at a time",
                               symbol: "person.2.slash")
-        } else if (faces[0].faceCaptureQuality ?? 0) < 0.5 {
+        } else if (faces[0].faceCaptureQuality ?? 0) < 0.35 {
             quality = Quality(isReady: false,
                               message: "Hold steady, get closer",
                               symbol: "camera.metering.center.weighted")
         } else {
             quality = Quality(isReady: true,
-                              message: "Good — ready to enroll",
+                              message: "Good — ready to capture",
                               symbol: "checkmark.circle.fill")
         }
     }
