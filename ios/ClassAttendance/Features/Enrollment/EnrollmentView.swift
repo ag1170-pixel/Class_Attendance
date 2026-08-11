@@ -17,6 +17,10 @@ struct EnrollmentView: View {
     @State private var showSuccess = false
     @State private var enrolledList: [(register: String, name: String)] = []
     @FocusState private var isInputActive: Bool
+    
+    var isDuplicate: Bool {
+        enrollCount == 0 && enrolledList.contains(where: { $0.register == registerNo })
+    }
 
     var body: some View {
         Form {
@@ -95,6 +99,12 @@ struct EnrollmentView: View {
                 }
             }
 
+            if isDuplicate {
+                Text("This Register No is already enrolled. Delete it from the list below if you want to re-enroll.")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
             Button(showSuccess ? "Enrolled ✓" : (enrollCount > 0 ? "Add This Photo" : "Enroll Face")) {
                 if cam.enroll(register: registerNo, name: fullName) {
                     enrollCount += 1
@@ -106,7 +116,7 @@ struct EnrollmentView: View {
                     enrolledList = FaceRecognizer.shared.enrolledList()
                 }
             }
-            .disabled(showSuccess || cam.frozenImage == nil
+            .disabled(showSuccess || cam.frozenImage == nil || isDuplicate
                       || !(consent && !registerNo.isEmpty && !fullName.isEmpty))
             
             if !enrolledList.isEmpty {

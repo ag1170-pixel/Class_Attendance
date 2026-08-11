@@ -301,7 +301,7 @@ struct LiveCaptureView: View {
                   finished = false
                   running = false
                 } label: {
-                  Label("Capture Again", systemImage: "arrow.counterclockwise")
+                  Label("Add Another Shot", systemImage: "arrow.counterclockwise")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20).padding(.vertical, 12)
