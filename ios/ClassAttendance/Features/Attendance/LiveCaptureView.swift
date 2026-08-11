@@ -186,10 +186,35 @@ struct FaceCameraView: UIViewRepresentable {
       CATransaction.setDisableActions(true)
       overlays.forEach { $0.removeFromSuperlayer() }
       overlays.removeAll(keepingCapacity: true)
+      let layerSize = previewLayer.bounds.size
+      guard layerSize.width > 0, layerSize.height > 0 else {
+          CATransaction.commit()
+          return
+      }
+      let imageRatio: CGFloat = 3.0 / 4.0 // 480x640 in portrait
+      let viewRatio = layerSize.width / layerSize.height
+      
+      let scale: CGFloat
+      if viewRatio > imageRatio {
+          scale = layerSize.width / imageRatio
+      } else {
+          scale = layerSize.height
+      }
+      
+      let renderedWidth = scale * imageRatio
+      let renderedHeight = scale
+      
+      let xOffset = (layerSize.width - renderedWidth) / 2
+      let yOffset = (layerSize.height - renderedHeight) / 2
+
       for b in boxes {
-        let meta = CGRect(
-          x: b.rect.minX, y: 1 - b.rect.maxY, width: b.rect.width, height: b.rect.height)
-        let rect = previewLayer.layerRectConverted(fromMetadataOutputRect: meta)
+        let uiY = 1 - b.rect.maxY
+        let rect = CGRect(
+            x: (b.rect.minX * renderedWidth) + xOffset,
+            y: (uiY * renderedHeight) + yOffset,
+            width: b.rect.width * renderedWidth,
+            height: b.rect.height * renderedHeight
+        )
         let color: UIColor =
           b.present ? .systemGreen : (b.name != nil ? .systemOrange : .systemYellow)
 
