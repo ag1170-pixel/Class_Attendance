@@ -1,56 +1,74 @@
 import Foundation
 import Vision
 import CoreImage
+import CoreML
 
-/// On-device face recognition — no server, no model download.
+/// On-device face recognition using CoreML (MobileFaceNet).
 ///
-/// v1 uses Vision's `VNGenerateImageFeaturePrintRequest` (Neural Engine) as the
-/// face embedding: enrol a face once, then match live faces by feature-print
-/// distance with the same dual-threshold rule as the server (docs/06_ACCURACY.md).
-/// Distance is the inverse of similarity — smaller = closer. Thresholds need a
-/// quick on-device tune per device/lighting.
-///
-/// Upgrade path (max accuracy): drop a converted ArcFace/FaceNet Core ML model
-/// behind `featurePrint(...)` — the enrol/match flow is unchanged.
-///
-/// Thread-safe: `featurePrint`/`match` are called from the camera queue;
-/// `enroll` from the main thread. A lock guards the enrolled set.
+/// Upgraded to use a true facial identity embedding model instead of the generic
+/// Apple image feature print. This calculates a 128-d or 512-d vector and uses
+/// Cosine Similarity to compare faces, completely ignoring the background!
 final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
-    // Tune on-device: below `present` = confident; below `review` = surface to teacher.
-    var distPresent: Float = 9.0
-    var distReview: Float = 14.0
+    // Cosine similarity thresholds: higher is better (1.0 is exact match)
+    var simPresent: Float = 0.65
+    var simReview: Float = 0.50
 
-    struct Enrolled { let register: String; let name: String; var prints: [VNFeaturePrintObservation] }
+    struct Enrolled { let register: String; let name: String; var prints: [[Float]] }
     enum Result { case present(String, String), review(String, String), none }
 
     private var enrolled: [String: Enrolled] = [:]   // keyed by register
     private let lock = NSLock()
     private let store = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("enroll.json")
+        .appendingPathComponent("enroll_coreml.json")
 
-    init() { load() }
+    private var faceModel: VNCoreMLModel?
+
+    init() {
+        load()
+        // Dynamically load the MobileFaceNet model if the user added it to the Xcode project
+        if let modelURL = Bundle.main.url(forResource: "MobileFaceNet", withExtension: "mlmodelc"),
+           let model = try? MLModel(contentsOf: modelURL) {
+            self.faceModel = try? VNCoreMLModel(for: model)
+        }
+    }
 
     var count: Int { lock.lock(); defer { lock.unlock() }; return enrolled.count }
 
     // MARK: embedding (pure; safe on any thread)
 
-    /// Feature print for the face region of a pixel buffer (Vision bbox, bottom-left).
-    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> VNFeaturePrintObservation? {
+    /// Extracts a facial embedding vector from the cropped face using CoreML.
+    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> [Float]? {
+        guard let faceModel = faceModel else {
+            print("WARNING: MobileFaceNet.mlmodel not found in bundle!")
+            return nil
+        }
+        
         let ci = CIImage(cvPixelBuffer: pixelBuffer)
         let px = VNImageRectForNormalizedRect(faceBox, Int(ci.extent.width), Int(ci.extent.height))
-            .insetBy(dx: -40, dy: -40)                 // wider context for better feature prints
         let crop = ci.cropped(to: px.intersection(ci.extent))
         guard !crop.extent.isEmpty else { return nil }
-        let req = VNGenerateImageFeaturePrintRequest()
+        
+        let req = VNCoreMLRequest(model: faceModel)
+        // MobileFaceNet usually expects 112x112, Vision scales it automatically
+        req.imageCropAndScaleOption = .scaleFill 
+        
         try? VNImageRequestHandler(ciImage: crop).perform([req])
-        return req.results?.first as? VNFeaturePrintObservation
+        
+        guard let results = req.results as? [VNCoreMLFeatureValueObservation],
+              let multiArray = results.first?.featureValue.multiArrayValue else { return nil }
+        
+        var embedding: [Float] = []
+        for i in 0..<multiArray.count {
+            embedding.append(multiArray[i].floatValue)
+        }
+        return embedding
     }
 
     // MARK: enrol
 
-    func enroll(register: String, name: String, print: VNFeaturePrintObservation) {
+    func enroll(register: String, name: String, print: [Float]) {
         lock.lock()
         var e = enrolled[register] ?? Enrolled(register: register, name: name, prints: [])
         e = Enrolled(register: register, name: name, prints: e.prints + [print])
@@ -79,33 +97,38 @@ final class FaceRecognizer {
         return enrolled.values.map { (register: $0.register, name: $0.name) }.sorted { $0.name < $1.name }
     }
 
-    // MARK: match (dual-threshold)
+    // MARK: match (cosine similarity)
 
-    func match(_ probe: VNFeaturePrintObservation) -> Result {
+    private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
+        let dot = zip(a, b).map(*).reduce(0, +)
+        let magA = sqrt(a.map { $0 * $0 }.reduce(0, +))
+        let magB = sqrt(b.map { $0 * $0 }.reduce(0, +))
+        return magA * magB == 0 ? 0 : dot / (magA * magB)
+    }
+
+    func match(_ probe: [Float]) -> Result {
         lock.lock(); let snapshot = Array(enrolled.values); lock.unlock()
-        var bestReg = "", bestName = "", best = Float.greatestFiniteMagnitude
+        var bestReg = "", bestName = "", bestSim: Float = -1.0
+        
         for e in snapshot {
             for p in e.prints {
-                var d = Float.greatestFiniteMagnitude
-                try? p.computeDistance(&d, to: probe)
-                if d < best { best = d; bestReg = e.register; bestName = e.name }
+                let sim = cosineSimilarity(p, probe)
+                if sim > bestSim { bestSim = sim; bestReg = e.register; bestName = e.name }
             }
         }
-        if best <= distPresent { return .present(bestReg, bestName) }
-        if best <= distReview  { return .review(bestReg, bestName) }
+        
+        if bestSim >= simPresent { return .present(bestReg, bestName) }
+        if bestSim >= simReview  { return .review(bestReg, bestName) }
         return .none
     }
 
-    // MARK: persistence (feature prints are NSSecureCoding)
+    // MARK: persistence
 
-    private struct Row: Codable { let register: String; let name: String; let prints: [Data] }
+    private struct Row: Codable { let register: String; let name: String; let prints: [[Float]] }
 
     private func saveLocked() {
         let rows = enrolled.values.map { e in
-            Row(register: e.register, name: e.name,
-                prints: e.prints.compactMap {
-                    try? NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true)
-                })
+            Row(register: e.register, name: e.name, prints: e.prints)
         }
         if let data = try? JSONEncoder().encode(rows) { try? data.write(to: store) }
     }
@@ -114,10 +137,7 @@ final class FaceRecognizer {
         guard let data = try? Data(contentsOf: store),
               let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
         for r in rows {
-            let prints = r.prints.compactMap {
-                try? NSKeyedUnarchiver.unarchivedObject(ofClass: VNFeaturePrintObservation.self, from: $0)
-            }
-            if !prints.isEmpty { enrolled[r.register] = Enrolled(register: r.register, name: r.name, prints: prints) }
+            if !r.prints.isEmpty { enrolled[r.register] = Enrolled(register: r.register, name: r.name, prints: r.prints) }
         }
     }
 }
