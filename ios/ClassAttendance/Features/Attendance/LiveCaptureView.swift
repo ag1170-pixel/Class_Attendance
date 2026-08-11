@@ -10,6 +10,7 @@ final class TrackedFace {
   var register: String?
   var name: String?
   var present = false  // matched at the "present" threshold
+  var score: Float = 0 // match confidence
   init(box: CGRect) {
     self.box = box
     request = VNTrackObjectRequest(
@@ -108,22 +109,42 @@ final class FaceTracker: NSObject, ObservableObject,
           tf.register = carried.register
           tf.name = carried.name
           tf.present = carried.present
+          tf.score = carried.score
         } else if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
           switch FaceRecognizer.shared.match(fp) {
-          case .present(let r, let n):
+          case .present(let r, let n, let score):
             tf.register = r
             tf.name = n
             tf.present = true
-          case .review(let r, let n):
+            tf.score = score
+          case .review(let r, let n, let score):
             tf.register = r
             tf.name = n
             tf.present = false
+            tf.score = score
           case .none: break
           }
         }
         next.append(tf)
-        out.append(LiveBox(rect: box, name: tf.name, present: tf.present))
       }
+      
+      // Enforce uniqueness: if two boxes have the SAME register, keep the highest score.
+      var bestScoreForReg: [String: Float] = [:]
+      for tf in next {
+          if let reg = tf.register {
+              bestScoreForReg[reg] = max(bestScoreForReg[reg] ?? -1.0, tf.score)
+          }
+      }
+      for tf in next {
+          if let reg = tf.register, tf.score < bestScoreForReg[reg]! {
+              tf.register = nil
+              tf.name = nil
+              tf.present = false
+              tf.score = 0
+          }
+          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present))
+      }
+      
       tracks = next
     } else {
       try? sequence.perform(tracks.map { $0.request }, on: pixel, orientation: .leftMirrored)

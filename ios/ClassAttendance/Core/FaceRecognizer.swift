@@ -16,7 +16,6 @@ final class FaceRecognizer {
     var simReview: Float = 0.50
 
     struct Enrolled { let register: String; let name: String; var prints: [[Float]] }
-    enum Result { case present(String, String), review(String, String), none }
 
     private var enrolled: [String: Enrolled] = [:]   // keyed by register
     private let lock = NSLock()
@@ -106,6 +105,8 @@ final class FaceRecognizer {
         return magA * magB == 0 ? 0 : dot / (magA * magB)
     }
 
+    enum Result { case present(String, String, Float), review(String, String, Float), none }
+
     func match(_ probe: [Float]) -> Result {
         lock.lock(); let snapshot = Array(enrolled.values); lock.unlock()
         var bestReg = "", bestName = "", bestSim: Float = -1.0
@@ -117,8 +118,8 @@ final class FaceRecognizer {
             }
         }
         
-        if bestSim >= simPresent { return .present(bestReg, bestName) }
-        if bestSim >= simReview  { return .review(bestReg, bestName) }
+        if bestSim >= simPresent { return .present(bestReg, bestName, bestSim) }
+        if bestSim >= simReview  { return .review(bestReg, bestName, bestSim) }
         return .none
     }
 
