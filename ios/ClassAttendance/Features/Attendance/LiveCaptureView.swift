@@ -11,6 +11,10 @@ final class TrackedFace {
   var name: String?
   var present = false  // matched at the "present" threshold
   var score: Float = 0 // match confidence
+  
+  // Rolling track history: maps Register No -> Array of recent similarity scores
+  var scores: [String: [Float]] = [:]
+
   init(box: CGRect) {
     self.box = box
     request = VNTrackObjectRequest(
@@ -36,6 +40,7 @@ final class FaceTracker: NSObject, ObservableObject,
   @Published var boxes: [LiveBox] = []
   @Published var presentRegisters: Set<String> = []
   @Published var unavailable: String?
+  @Published var cameraPosition: AVCaptureDevice.Position = .front
 
   private let queue = DispatchQueue(label: "face.tracker")
   private let sequence = VNSequenceRequestHandler()
@@ -45,6 +50,8 @@ final class FaceTracker: NSObject, ObservableObject,
   var isRecording = false
 
   func start() {
+    isRecording = true
+    presentRegisters.removeAll()
     switch AVCaptureDevice.authorizationStatus(for: .video) {
     case .authorized: configure()
     case .notDetermined:
@@ -59,26 +66,38 @@ final class FaceTracker: NSObject, ObservableObject,
     }
   }
 
+  func flipCamera() {
+      cameraPosition = (cameraPosition == .front) ? .back : .front
+      configure() // reconfigure with new position
+  }
+
   private func configure() {
-    unavailable = nil
-    guard session.inputs.isEmpty else {
-      queue.async { self.session.startRunning() }
-      return
+    queue.async {
+        self.session.beginConfiguration()
+        self.session.inputs.forEach { self.session.removeInput($0) }
+        
+        self.session.sessionPreset = .medium  // 480p — much lighter than .high for face tracking
+        guard
+          let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition),
+          let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input)
+        else {
+          Task { @MainActor in self.unavailable = "No camera found." }
+          self.session.commitConfiguration()
+          return
+        }
+        self.session.addInput(input)
+        
+        if self.session.outputs.isEmpty {
+            let output = AVCaptureVideoDataOutput()
+            output.setSampleBufferDelegate(self, queue: self.queue)
+            output.alwaysDiscardsLateVideoFrames = true
+            if self.session.canAddOutput(output) { self.session.addOutput(output) }
+        }
+        
+        self.session.commitConfiguration()
+        self.session.startRunning()
+        Task { @MainActor in self.unavailable = nil }
     }
-    session.sessionPreset = .medium  // 480p — much lighter than .high for face tracking
-    guard
-      let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-      let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input)
-    else {
-      unavailable = "No camera found. The Simulator has no camera — run on a real iPhone."
-      return
-    }
-    session.addInput(input)
-    let output = AVCaptureVideoDataOutput()
-    output.setSampleBufferDelegate(self, queue: queue)
-    output.alwaysDiscardsLateVideoFrames = true
-    if session.canAddOutput(output) { session.addOutput(output) }
-    queue.async { self.session.startRunning() }
   }
 
   func stop() { session.stopRunning() }
@@ -105,24 +124,57 @@ final class FaceTracker: NSObject, ObservableObject,
         let box = obs.boundingBox
         let center = CGPoint(x: box.midX, y: box.midY)
         let tf = TrackedFace(box: box)
-        // Always run the recognizer on detection frames (every 30 frames). 
-        // Do not blindly carry over identity just because the box overlaps, 
-        // otherwise a new person standing where the old person was will steal their identity!
-        if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
-          switch FaceRecognizer.shared.match(fp) {
-          case .present(let r, let n, let score):
-            tf.register = r
-            tf.name = n
-            tf.present = true
-            tf.score = score
-          case .review(let r, let n, let score):
-            tf.register = r
-            tf.name = n
-            tf.present = false
-            tf.score = score
-          case .none: break
-          }
+        
+        // 1. Carry over track history if box overlaps with previous tracker
+        if let carried = prev.first(where: { $0.box.contains(center) }) {
+          tf.scores = carried.scores
         }
+        
+        // 2. Always run face recognizer on detection frames to update history
+        if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
+            let matches = FaceRecognizer.shared.matchAll(fp)
+            for (reg, data) in matches {
+                var list = tf.scores[reg] ?? []
+                list.append(data.score)
+                // keep last 5 scores for rolling average
+                if list.count > 5 { list.removeFirst() }
+                tf.scores[reg] = list
+                
+                // Cache the name on the first time we see it
+                if tf.name == nil { tf.name = data.name }
+            }
+        }
+        
+        // 3. Resolve identity based on highest rolling average
+        var bestAvg: Float = -1.0
+        var bestReg: String?
+        for (reg, list) in tf.scores {
+            let avg = list.reduce(0, +) / Float(list.count)
+            if avg > bestAvg {
+                bestAvg = avg
+                bestReg = reg
+            }
+        }
+        
+        // 4. Apply strict thresholds to the smoothed average
+        if let r = bestReg {
+            tf.register = r
+            tf.score = bestAvg
+            if bestAvg >= FaceRecognizer.shared.distPresent {
+                tf.present = true
+            } else if bestAvg >= FaceRecognizer.shared.distReview {
+                tf.present = false
+            } else {
+                tf.register = nil
+                tf.present = false
+            }
+            
+            // Look up the name if we lost it (but retained register)
+            if tf.name == nil, let enrolled = FaceRecognizer.shared.enrolledList().first(where: { $0.register == r }) {
+                tf.name = enrolled.name
+            }
+        }
+        
         next.append(tf)
       }
       
@@ -294,13 +346,29 @@ struct LiveCaptureView: View {
       } else {
         FaceCameraView(tracker: tracker).ignoresSafeArea()
         VStack {
+          HStack {
+            Spacer()
+            Button(action: {
+                tracker.flipCamera()
+            }) {
+                Image(systemName: "arrow.triangle.2.circlepath.camera")
+                    .font(.title2)
+                    .padding()
+                    .background(.ultraThinMaterial, in: Circle())
+                    .foregroundStyle(.white)
+            }
+            .padding(.trailing, 20)
+            .padding(.top, 50)
+            .opacity((running || finished) ? 0 : 1)
+            .disabled(running || finished)
+          }
           if running && !finished {
             Text("\(countdown)")
               .font(.system(size: 72, weight: .bold, design: .rounded))
               .foregroundStyle(.white)
               .padding(.horizontal, 30).padding(.vertical, 8)
               .background(.ultraThinMaterial, in: Capsule())
-              .padding(.top, 60).contentTransition(.numericText())
+              .padding(.top, 10).contentTransition(.numericText())
           }
           Spacer()
           Label(

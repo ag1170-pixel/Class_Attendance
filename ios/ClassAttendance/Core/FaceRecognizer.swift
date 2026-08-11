@@ -32,6 +32,24 @@ final class FaceRecognizer {
         setupModel()
     }
     
+    // Returns the best score for each enrolled person
+    func matchAll(_ probe: [Float]) -> [String: (name: String, score: Float)] {
+        lock.lock(); defer { lock.unlock() }
+        var results: [String: (name: String, score: Float)] = [:]
+        
+        for e in enrolled.values {
+            var bestScore: Float = -1.0
+            for p in e.prints {
+                let score = cosineSimilarity(p, probe)
+                if score > bestScore {
+                    bestScore = score
+                }
+            }
+            results[e.register] = (name: e.name, score: bestScore)
+        }
+        return results
+    }
+
     private func setupModel() {
         guard let url = Bundle.main.url(forResource: "MobileFaceNet", withExtension: "mlmodelc"),
               let mlModel = try? MLModel(contentsOf: url),
