@@ -30,14 +30,30 @@ final class AttendanceViewModel: ObservableObject {
         }
     }
 
-    /// Build the review from the on-device recogniser's present set. Falls back
-    /// to the demo pre-fill if nobody is enrolled/recognised yet.
+    /// Build the review from the ENROLLED students, not from demo data.
+    /// Each enrolled student becomes a row; present/absent is driven by what
+    /// the camera actually detected.
     func finish(present: Set<String>) {
-        let roster = DemoData.review()
-        rows = roster.map { r in
-            ReviewRow(studentId: r.studentId, registerNo: r.registerNo, fullName: r.fullName,
-                      status: present.contains(r.registerNo) ? .present : .absent,
-                      source: .auto, confidence: present.contains(r.registerNo) ? 0.9 : nil)
+        // 1. Get the real enrolled students
+        let enrolled = FaceRecognizer.shared.enrolledList()
+        
+        if enrolled.isEmpty {
+            // Fallback to demo data if nobody is enrolled yet
+            let roster = DemoData.review()
+            rows = roster.map { r in
+                ReviewRow(studentId: r.studentId, registerNo: r.registerNo, fullName: r.fullName,
+                          status: present.contains(r.registerNo) ? .present : .absent,
+                          source: .auto, confidence: present.contains(r.registerNo) ? 0.9 : nil)
+            }
+        } else {
+            // Build from real enrolled data
+            rows = enrolled.map { student in
+                let isPresent = present.contains(student.register)
+                return ReviewRow(studentId: student.register, registerNo: student.register,
+                                 fullName: student.name,
+                                 status: isPresent ? .present : .absent,
+                                 source: .auto, confidence: isPresent ? 0.9 : nil)
+            }
         }
         phase = .review
     }
