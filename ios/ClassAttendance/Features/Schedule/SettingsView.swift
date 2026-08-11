@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var faceIDLock = true
     @State private var reminders = true
     @State private var autoSubmit = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,13 @@ struct SettingsView: View {
                         Label("Enroll a student", systemImage: "person.crop.circle.badge.plus")
                     }
                 }
+                Section("Data Management") {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Delete All Face Data", systemImage: "trash")
+                    }
+                }
                 Section {
                     Button(role: .destructive) { auth.signOut() } label: {
                         Text("Sign Out").frame(maxWidth: .infinity)
@@ -31,6 +39,12 @@ struct SettingsView: View {
             }
             .tint(Theme.accent)
             .navigationTitle("Settings")
+            .confirmationDialog("Are you sure you want to delete all enrolled face data? This cannot be undone.", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Delete All", role: .destructive) {
+                    FaceRecognizer.shared.deleteAll()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
     }
 }
