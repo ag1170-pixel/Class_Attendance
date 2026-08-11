@@ -12,8 +12,10 @@ final class FaceRecognizer {
 
     // Distance thresholds (lower is closer/better match)
     // We will convert distance to a "score" by negating it, so higher score is better.
-    var distPresent: Float = 10.0
-    var distReview: Float = 15.0
+    // NOTE: VNFeaturePrintObservation typically returns < 1.0 for identical images.
+    // For the same face in different frames, it usually ranges 1.0 - 2.5.
+    var distPresent: Float = 2.0
+    var distReview: Float = 3.0
 
     struct Enrolled { let register: String; let name: String; var prints: [VNFeaturePrintObservation] }
     
