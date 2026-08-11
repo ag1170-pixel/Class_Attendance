@@ -7,46 +7,48 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1A0000000000000000000C01 /* App/ClassAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F01 /* App/ClassAttendanceApp.swift */; };
-		1A0000000000000000000C02 /* Core/Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F02 /* Core/Models.swift */; };
-		1A0000000000000000000C03 /* Core/APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F03 /* Core/APIClient.swift */; };
-		1A0000000000000000000C04 /* Core/AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F04 /* Core/AuthManager.swift */; };
-		1A0000000000000000000C05 /* Core/Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F05 /* Core/Theme.swift */; };
-		1A0000000000000000000C06 /* Core/DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F06 /* Core/DemoData.swift */; };
-		1A0000000000000000000C07 /* Features/Login/LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F07 /* Features/Login/LoginView.swift */; };
-		1A0000000000000000000C08 /* Features/Schedule/ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F08 /* Features/Schedule/ScheduleView.swift */; };
-		1A0000000000000000000C09 /* Features/Attendance/AttendanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F09 /* Features/Attendance/AttendanceView.swift */; };
-		1A0000000000000000000C10 /* Features/Enrollment/EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F10 /* Features/Enrollment/EnrollmentView.swift */; };
-		1A0000000000000000000C11 /* Features/MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F11 /* Features/MainTabView.swift */; };
-		1A0000000000000000000C12 /* Features/Schedule/TimetableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F12 /* Features/Schedule/TimetableView.swift */; };
-		1A0000000000000000000C13 /* Features/Schedule/HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F13 /* Features/Schedule/HistoryView.swift */; };
-		1A0000000000000000000C14 /* Features/Schedule/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F14 /* Features/Schedule/SettingsView.swift */; };
-		1A0000000000000000000C15 /* Core/SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F15 /* Core/SupabaseClient.swift */; };
-		1A0000000000000000000C16 /* Features/Attendance/LiveCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F16 /* Features/Attendance/LiveCaptureView.swift */; };
-		1A0000000000000000000C17 /* Features/Schedule/ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F17 /* Features/Schedule/ReportsView.swift */; };
-		1A0000000000000000000C18 /* Core/FaceRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F18 /* Core/FaceRecognizer.swift */; };
+		1A0000000000000000000C01 /* ClassAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F01 /* ClassAttendanceApp.swift */; };
+		1A0000000000000000000C02 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F02 /* Models.swift */; };
+		1A0000000000000000000C03 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F03 /* APIClient.swift */; };
+		1A0000000000000000000C04 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F04 /* AuthManager.swift */; };
+		1A0000000000000000000C05 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F05 /* Theme.swift */; };
+		1A0000000000000000000C06 /* DemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F06 /* DemoData.swift */; };
+		1A0000000000000000000C07 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F07 /* LoginView.swift */; };
+		1A0000000000000000000C08 /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F08 /* ScheduleView.swift */; };
+		1A0000000000000000000C09 /* AttendanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F09 /* AttendanceView.swift */; };
+		1A0000000000000000000C10 /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F10 /* EnrollmentView.swift */; };
+		1A0000000000000000000C11 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F11 /* MainTabView.swift */; };
+		1A0000000000000000000C12 /* TimetableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F12 /* TimetableView.swift */; };
+		1A0000000000000000000C13 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F13 /* HistoryView.swift */; };
+		1A0000000000000000000C14 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F14 /* SettingsView.swift */; };
+		1A0000000000000000000C15 /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F15 /* SupabaseClient.swift */; };
+		1A0000000000000000000C16 /* LiveCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F16 /* LiveCaptureView.swift */; };
+		1A0000000000000000000C17 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F17 /* ReportsView.swift */; };
+		1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F18 /* FaceRecognizer.swift */; };
+		7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1A0000000000000000000F00 /* ClassAttendance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1A0000000000000000000F01 /* App/ClassAttendanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/ClassAttendanceApp.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F02 /* Core/Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F03 /* Core/APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/APIClient.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F04 /* Core/AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AuthManager.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F05 /* Core/Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Theme.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F06 /* Core/DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DemoData.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F07 /* Features/Login/LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Login/LoginView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F08 /* Features/Schedule/ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ScheduleView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F09 /* Features/Attendance/AttendanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Attendance/AttendanceView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F10 /* Features/Enrollment/EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Enrollment/EnrollmentView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F11 /* Features/MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MainTabView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F12 /* Features/Schedule/TimetableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/TimetableView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F13 /* Features/Schedule/HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/HistoryView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F14 /* Features/Schedule/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/SettingsView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F15 /* Core/SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/SupabaseClient.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F16 /* Features/Attendance/LiveCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Attendance/LiveCaptureView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F17 /* Features/Schedule/ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ReportsView.swift; sourceTree = "<group>"; };
-		1A0000000000000000000F18 /* Core/FaceRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/FaceRecognizer.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F01 /* ClassAttendanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/ClassAttendanceApp.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F02 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Models.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F03 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/APIClient.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F04 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AuthManager.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F05 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Theme.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F06 /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DemoData.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F07 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Login/LoginView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F08 /* ScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ScheduleView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F09 /* AttendanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Attendance/AttendanceView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F10 /* EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Enrollment/EnrollmentView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F11 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MainTabView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F12 /* TimetableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/TimetableView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F13 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/HistoryView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F14 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/SettingsView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F15 /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/SupabaseClient.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F16 /* LiveCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Attendance/LiveCaptureView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F17 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ReportsView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F18 /* FaceRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/FaceRecognizer.swift; sourceTree = "<group>"; };
+		4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = MobileFaceNet.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,24 +81,25 @@
 		1A0000000000000000000A4 /* ClassAttendance */ = {
 			isa = PBXGroup;
 			children = (
-				1A0000000000000000000F01 /* App/ClassAttendanceApp.swift */,
-				1A0000000000000000000F02 /* Core/Models.swift */,
-				1A0000000000000000000F03 /* Core/APIClient.swift */,
-				1A0000000000000000000F04 /* Core/AuthManager.swift */,
-				1A0000000000000000000F05 /* Core/Theme.swift */,
-				1A0000000000000000000F06 /* Core/DemoData.swift */,
-				1A0000000000000000000F07 /* Features/Login/LoginView.swift */,
-				1A0000000000000000000F08 /* Features/Schedule/ScheduleView.swift */,
-				1A0000000000000000000F09 /* Features/Attendance/AttendanceView.swift */,
-				1A0000000000000000000F10 /* Features/Enrollment/EnrollmentView.swift */,
-				1A0000000000000000000F11 /* Features/MainTabView.swift */,
-				1A0000000000000000000F12 /* Features/Schedule/TimetableView.swift */,
-				1A0000000000000000000F13 /* Features/Schedule/HistoryView.swift */,
-				1A0000000000000000000F14 /* Features/Schedule/SettingsView.swift */,
-				1A0000000000000000000F15 /* Core/SupabaseClient.swift */,
-				1A0000000000000000000F16 /* Features/Attendance/LiveCaptureView.swift */,
-				1A0000000000000000000F17 /* Features/Schedule/ReportsView.swift */,
-				1A0000000000000000000F18 /* Core/FaceRecognizer.swift */,
+				1A0000000000000000000F01 /* ClassAttendanceApp.swift */,
+				1A0000000000000000000F02 /* Models.swift */,
+				1A0000000000000000000F03 /* APIClient.swift */,
+				1A0000000000000000000F04 /* AuthManager.swift */,
+				1A0000000000000000000F05 /* Theme.swift */,
+				1A0000000000000000000F06 /* DemoData.swift */,
+				1A0000000000000000000F07 /* LoginView.swift */,
+				1A0000000000000000000F08 /* ScheduleView.swift */,
+				1A0000000000000000000F09 /* AttendanceView.swift */,
+				1A0000000000000000000F10 /* EnrollmentView.swift */,
+				1A0000000000000000000F11 /* MainTabView.swift */,
+				1A0000000000000000000F12 /* TimetableView.swift */,
+				1A0000000000000000000F13 /* HistoryView.swift */,
+				1A0000000000000000000F14 /* SettingsView.swift */,
+				1A0000000000000000000F15 /* SupabaseClient.swift */,
+				1A0000000000000000000F16 /* LiveCaptureView.swift */,
+				1A0000000000000000000F17 /* ReportsView.swift */,
+				1A0000000000000000000F18 /* FaceRecognizer.swift */,
+				4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */,
 			);
 			path = ClassAttendance;
 			sourceTree = "<group>";
@@ -158,24 +161,25 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1A0000000000000000000C01 /* App/ClassAttendanceApp.swift in Sources */,
-				1A0000000000000000000C02 /* Core/Models.swift in Sources */,
-				1A0000000000000000000C03 /* Core/APIClient.swift in Sources */,
-				1A0000000000000000000C04 /* Core/AuthManager.swift in Sources */,
-				1A0000000000000000000C05 /* Core/Theme.swift in Sources */,
-				1A0000000000000000000C06 /* Core/DemoData.swift in Sources */,
-				1A0000000000000000000C07 /* Features/Login/LoginView.swift in Sources */,
-				1A0000000000000000000C08 /* Features/Schedule/ScheduleView.swift in Sources */,
-				1A0000000000000000000C09 /* Features/Attendance/AttendanceView.swift in Sources */,
-				1A0000000000000000000C10 /* Features/Enrollment/EnrollmentView.swift in Sources */,
-				1A0000000000000000000C11 /* Features/MainTabView.swift in Sources */,
-				1A0000000000000000000C12 /* Features/Schedule/TimetableView.swift in Sources */,
-				1A0000000000000000000C13 /* Features/Schedule/HistoryView.swift in Sources */,
-				1A0000000000000000000C14 /* Features/Schedule/SettingsView.swift in Sources */,
-				1A0000000000000000000C15 /* Core/SupabaseClient.swift in Sources */,
-				1A0000000000000000000C16 /* Features/Attendance/LiveCaptureView.swift in Sources */,
-				1A0000000000000000000C17 /* Features/Schedule/ReportsView.swift in Sources */,
-				1A0000000000000000000C18 /* Core/FaceRecognizer.swift in Sources */,
+				1A0000000000000000000C01 /* ClassAttendanceApp.swift in Sources */,
+				1A0000000000000000000C02 /* Models.swift in Sources */,
+				1A0000000000000000000C03 /* APIClient.swift in Sources */,
+				1A0000000000000000000C04 /* AuthManager.swift in Sources */,
+				1A0000000000000000000C05 /* Theme.swift in Sources */,
+				1A0000000000000000000C06 /* DemoData.swift in Sources */,
+				1A0000000000000000000C07 /* LoginView.swift in Sources */,
+				1A0000000000000000000C08 /* ScheduleView.swift in Sources */,
+				1A0000000000000000000C09 /* AttendanceView.swift in Sources */,
+				1A0000000000000000000C10 /* EnrollmentView.swift in Sources */,
+				1A0000000000000000000C11 /* MainTabView.swift in Sources */,
+				1A0000000000000000000C12 /* TimetableView.swift in Sources */,
+				1A0000000000000000000C13 /* HistoryView.swift in Sources */,
+				1A0000000000000000000C14 /* SettingsView.swift in Sources */,
+				1A0000000000000000000C15 /* SupabaseClient.swift in Sources */,
+				1A0000000000000000000C16 /* LiveCaptureView.swift in Sources */,
+				1A0000000000000000000C17 /* ReportsView.swift in Sources */,
+				1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */,
+				7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

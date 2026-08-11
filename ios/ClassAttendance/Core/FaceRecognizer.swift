@@ -1,124 +1,169 @@
 import Foundation
 import Vision
+import CoreML
 import CoreImage
 
 /// On-device face recognition — purely Apple-native, no external model required!
 ///
-/// v2: Uses Vision's `VNGenerateImageFeaturePrintRequest` but fixes the previous 
-/// false-positive bug by applying a STRICT crop to the face bounding box, completely
-/// eliminating the background from the feature print.
+/// v2: Uses VNCoreMLRequest for face embeddings, returning 512-d [Float] 
+/// arrays, and evaluates matches using cosine similarity.
 final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
-    // Distance thresholds (lower is closer/better match)
-    // We will convert distance to a "score" by negating it, so higher score is better.
-    // NOTE: VNFeaturePrintObservation typically returns < 1.0 for identical images.
-    // For the same face in different frames, it usually ranges 1.0 - 2.5.
-    var distPresent: Float = 2.0
-    var distReview: Float = 3.0
+    // Cosine similarity thresholds (higher is better, max 1.0)
+    // Same person usually scores > 0.6. Different people < 0.4.
+    var distPresent: Float = 0.55
+    var distReview: Float = 0.45
 
-    struct Enrolled { let register: String; let name: String; var prints: [VNFeaturePrintObservation] }
+    struct Enrolled { let register: String; let name: String; var prints: [[Float]] }
     
-    // Result includes the score (which is -distance, so closer to 0 is better, -15 is worse)
+    // Result includes the score (cosine similarity)
     enum Result { case present(String, String, Float), review(String, String, Float), none }
 
     private var enrolled: [String: Enrolled] = [:]   // keyed by register
     private let lock = NSLock()
     private let store = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("enroll_native.json")
+        .appendingPathComponent("enroll_facenet.json")
+    
+    private var coreMLModel: VNCoreMLModel?
 
-    init() { load() }
+    init() { 
+        load() 
+        setupModel()
+    }
+    
+    private func setupModel() {
+        guard let url = Bundle.main.url(forResource: "MobileFaceNet", withExtension: "mlmodelc"),
+              let mlModel = try? MLModel(contentsOf: url),
+              let vnModel = try? VNCoreMLModel(for: mlModel) else {
+            print("WARNING: MobileFaceNet.mlmodelc not found! Fallback unavailable.")
+            return
+        }
+        self.coreMLModel = vnModel
+    }
 
     var count: Int { lock.lock(); defer { lock.unlock() }; return enrolled.count }
 
     // MARK: embedding
 
-    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> VNFeaturePrintObservation? {
+    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> [Float]? {
+        guard let coreMLModel = coreMLModel else { return nil }
+        
         let ci = CIImage(cvPixelBuffer: pixelBuffer)
-        // STRICT CROP: We do NOT inset or expand the box. We only want the face pixels.
         let px = VNImageRectForNormalizedRect(faceBox, Int(ci.extent.width), Int(ci.extent.height))
-        let crop = ci.cropped(to: px.intersection(ci.extent))
+        // Expand the crop slightly to include the full head for FaceNet
+        let expanded = px.insetBy(dx: -px.width * 0.1, dy: -px.height * 0.1)
+        let crop = ci.cropped(to: expanded.intersection(ci.extent))
         guard !crop.extent.isEmpty else { return nil }
         
-        let req = VNGenerateImageFeaturePrintRequest()
+        let req = VNCoreMLRequest(model: coreMLModel)
+        req.imageCropAndScaleOption = .scaleFill // FaceNet expects 160x160 RGB
         try? VNImageRequestHandler(ciImage: crop).perform([req])
-        return req.results?.first as? VNFeaturePrintObservation
+        
+        guard let result = req.results?.first as? VNCoreMLFeatureValueObservation,
+              let multiArray = result.featureValue.multiArrayValue else { return nil }
+              
+        // Extract 512-d vector
+        var embedding: [Float] = []
+        for i in 0..<multiArray.count {
+            embedding.append(multiArray[i].floatValue)
+        }
+        return normalize(embedding)
     }
 
     // MARK: enrol
 
-    func enroll(register: String, name: String, print: VNFeaturePrintObservation) {
+    func enroll(register: String, name: String, print: [Float]) {
         lock.lock()
         var e = enrolled[register] ?? Enrolled(register: register, name: name, prints: [])
-        e = Enrolled(register: register, name: name, prints: e.prints + [print])
+        e.prints.append(print)
         enrolled[register] = e
-        saveLocked()
         lock.unlock()
+        save()
+    }
+
+    func enrolledList() -> [(register: String, name: String)] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(enrolled.values).map { (register: $0.register, name: $0.name) }.sorted(by: { $0.register < $1.register })
+    }
+
+    func deleteAll() {
+        lock.lock()
+        enrolled.removeAll()
+        lock.unlock()
+        save()
     }
     
     func delete(register: String) {
         lock.lock()
         enrolled.removeValue(forKey: register)
-        saveLocked()
         lock.unlock()
-    }
-    
-    func deleteAll() {
-        lock.lock()
-        enrolled.removeAll()
-        saveLocked()
-        lock.unlock()
-    }
-    
-    func enrolledList() -> [(register: String, name: String)] {
-        lock.lock()
-        defer { lock.unlock() }
-        return enrolled.values.map { (register: $0.register, name: $0.name) }.sorted { $0.name < $1.name }
+        save()
     }
 
     // MARK: match
 
-    func match(_ probe: VNFeaturePrintObservation) -> Result {
-        lock.lock(); let snapshot = Array(enrolled.values); lock.unlock()
-        var bestReg = "", bestName = "", bestDist = Float.greatestFiniteMagnitude
-        
-        for e in snapshot {
+    func match(_ probe: [Float]) -> Result {
+        lock.lock(); defer { lock.unlock() }
+        var bestScore: Float = -1.0
+        var bestReg: String?
+        var bestName: String?
+
+        for e in enrolled.values {
             for p in e.prints {
-                var d = Float.greatestFiniteMagnitude
-                try? p.computeDistance(&d, to: probe)
-                if d < bestDist { bestDist = d; bestReg = e.register; bestName = e.name }
+                let score = cosineSimilarity(p, probe)
+                if score > bestScore {
+                    bestScore = score
+                    bestReg = e.register
+                    bestName = e.name
+                }
             }
         }
-        
-        let score = -bestDist // Convert distance to score so higher is better
-        
-        if bestDist <= distPresent { return .present(bestReg, bestName, score) }
-        if bestDist <= distReview  { return .review(bestReg, bestName, score) }
+        guard let r = bestReg, let n = bestName else { return .none }
+        if bestScore >= distPresent { return .present(r, n, bestScore) }
+        if bestScore >= distReview { return .review(r, n, bestScore) }
         return .none
     }
 
-    // MARK: persistence
-
-    private struct Row: Codable { let register: String; let name: String; let prints: [Data] }
-
-    private func saveLocked() {
-        let rows = enrolled.values.map { e in
-            Row(register: e.register, name: e.name,
-                prints: e.prints.compactMap {
-                    try? NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true)
-                })
+    // MARK: math
+    
+    private func normalize(_ v: [Float]) -> [Float] {
+        let mag = sqrt(v.map { $0 * $0 }.reduce(0, +))
+        if mag == 0 { return v }
+        return v.map { $0 / mag }
+    }
+    
+    private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count else { return -1.0 }
+        var dotProduct: Float = 0.0
+        for i in 0..<a.count {
+            dotProduct += a[i] * b[i]
         }
-        if let data = try? JSONEncoder().encode(rows) { try? data.write(to: store) }
+        // Since vectors are pre-normalized, dot product == cosine similarity
+        return dotProduct
+    }
+
+    // MARK: persistence
+    
+    private struct SavedData: Codable {
+        let register: String
+        let name: String
+        let prints: [[Float]]
+    }
+
+    private func save() {
+        let data = enrolled.values.map { SavedData(register: $0.register, name: $0.name, prints: $0.prints) }
+        if let j = try? JSONEncoder().encode(data) {
+            try? j.write(to: store)
+        }
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: store),
-              let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
-        for r in rows {
-            let prints = r.prints.compactMap {
-                try? NSKeyedUnarchiver.unarchivedObject(ofClass: VNFeaturePrintObservation.self, from: $0)
+        if let d = try? Data(contentsOf: store),
+           let arr = try? JSONDecoder().decode([SavedData].self, from: d) {
+            for s in arr {
+                enrolled[s.register] = Enrolled(register: s.register, name: s.name, prints: s.prints)
             }
-            if !prints.isEmpty { enrolled[r.register] = Enrolled(register: r.register, name: r.name, prints: prints) }
         }
     }
 }
