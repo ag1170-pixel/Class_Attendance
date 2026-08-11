@@ -124,6 +124,19 @@ struct EnrollmentView: View {
                         enrolledList = FaceRecognizer.shared.enrolledList()
                     }
                 }
+                
+                Section {
+                    Button(role: .destructive) {
+                        FaceRecognizer.shared.deleteAll()
+                        enrolledList = []
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("Delete All Face Data")
+                            Spacer()
+                        }
+                    }
+                }
             }
         }
         .scrollDismissesKeyboard(.immediately)

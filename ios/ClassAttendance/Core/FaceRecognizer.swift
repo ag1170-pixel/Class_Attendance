@@ -19,8 +19,8 @@ final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
     // Tune on-device: below `present` = confident; below `review` = surface to teacher.
-    var distPresent: Float = 12.0
-    var distReview: Float = 18.0
+    var distPresent: Float = 9.0
+    var distReview: Float = 14.0
 
     struct Enrolled { let register: String; let name: String; var prints: [VNFeaturePrintObservation] }
     enum Result { case present(String, String), review(String, String), none }
@@ -62,6 +62,13 @@ final class FaceRecognizer {
     func delete(register: String) {
         lock.lock()
         enrolled.removeValue(forKey: register)
+        saveLocked()
+        lock.unlock()
+    }
+    
+    func deleteAll() {
+        lock.lock()
+        enrolled.removeAll()
         saveLocked()
         lock.unlock()
     }
