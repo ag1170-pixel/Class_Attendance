@@ -11,9 +11,10 @@ final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
     // Cosine similarity thresholds (higher is better, max 1.0)
-    // Same person usually scores > 0.6. Different people < 0.4.
-    var distPresent: Float = 0.55
-    var distReview: Float = 0.45
+    // 0.85 cosine similarity is the threshold for FaceNet without MTCNN
+    // meaning the face must be highly aligned and very confident.
+    var distPresent: Float = 0.85
+    var distReview: Float = 0.80
 
     struct Enrolled { let register: String; let name: String; var prints: [[Float]] }
     
