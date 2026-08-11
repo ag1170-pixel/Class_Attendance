@@ -248,7 +248,13 @@ struct FaceCameraView: UIViewRepresentable {
         overlays.append(box)
 
         let label = CATextLayer()
-        label.string = b.name ?? "Not enrolled"
+        if b.present {
+            label.string = b.name ?? "Unknown"
+        } else if b.name != nil {
+            label.string = "Hard to detect"
+        } else {
+            label.string = "Not enrolled"
+        }
         label.fontSize = 13
         label.foregroundColor = UIColor.white.cgColor
         label.backgroundColor = color.cgColor
