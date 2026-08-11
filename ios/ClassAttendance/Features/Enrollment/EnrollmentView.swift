@@ -16,12 +16,15 @@ struct EnrollmentView: View {
     @State private var enrollCount = 0
     @State private var showSuccess = false
     @State private var enrolledList: [(register: String, name: String)] = []
+    @FocusState private var isInputActive: Bool
 
     var body: some View {
         Form {
             Section("Student") {
                 TextField("Register No", text: $registerNo)
+                    .focused($isInputActive)
                 TextField("Full name", text: $fullName)
+                    .focused($isInputActive)
             }
             Section("Consent") {
                 Toggle("Student consents to face enrollment", isOn: $consent)
@@ -120,6 +123,15 @@ struct EnrollmentView: View {
                         }
                         enrolledList = FaceRecognizer.shared.enrolledList()
                     }
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    isInputActive = false
                 }
             }
         }
