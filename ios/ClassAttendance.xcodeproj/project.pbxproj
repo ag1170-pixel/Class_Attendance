@@ -26,6 +26,7 @@
 		1A0000000000000000000C17 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F17 /* ReportsView.swift */; };
 		1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F18 /* FaceRecognizer.swift */; };
 		7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */; };
+		5FACE0000000000000000A1 /* SFace.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 5FACE0000000000000000B1 /* SFace.mlpackage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +50,7 @@
 		1A0000000000000000000F17 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Schedule/ReportsView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000F18 /* FaceRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/FaceRecognizer.swift; sourceTree = "<group>"; };
 		4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = MobileFaceNet.mlpackage; sourceTree = "<group>"; };
+		5FACE0000000000000000B1 /* SFace.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = SFace.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +102,7 @@
 				1A0000000000000000000F17 /* ReportsView.swift */,
 				1A0000000000000000000F18 /* FaceRecognizer.swift */,
 				4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */,
+				5FACE0000000000000000B1 /* SFace.mlpackage */,
 			);
 			path = ClassAttendance;
 			sourceTree = "<group>";
@@ -180,6 +183,7 @@
 				1A0000000000000000000C17 /* ReportsView.swift in Sources */,
 				1A0000000000000000000C18 /* FaceRecognizer.swift in Sources */,
 				7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */,
+				5FACE0000000000000000A1 /* SFace.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

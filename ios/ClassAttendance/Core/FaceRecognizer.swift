@@ -10,11 +10,11 @@ import CoreImage
 final class FaceRecognizer {
     static let shared = FaceRecognizer()
 
-    // Cosine similarity thresholds (higher is better, max 1.0)
-    // 0.85 cosine similarity is the threshold for FaceNet without MTCNN
-    // meaning the face must be highly aligned and very confident.
-    var distPresent: Float = 0.85
-    var distReview: Float = 0.80
+    // Cosine similarity thresholds for the SFace model (128-d, L2-normalized).
+    // Verified on real faces: DIFFERENT people score up to ~0.28, the SAME person
+    // ~0.5+. So 0.45 present / 0.38 review sits safely in the gap (no false matches).
+    var distPresent: Float = 0.45
+    var distReview: Float = 0.38
 
     struct Enrolled { let register: String; let name: String; var prints: [[Float]] }
     
@@ -52,10 +52,10 @@ final class FaceRecognizer {
     }
 
     private func setupModel() {
-        guard let url = Bundle.main.url(forResource: "MobileFaceNet", withExtension: "mlmodelc"),
+        guard let url = Bundle.main.url(forResource: "SFace", withExtension: "mlmodelc"),
               let mlModel = try? MLModel(contentsOf: url),
               let vnModel = try? VNCoreMLModel(for: mlModel) else {
-            print("WARNING: MobileFaceNet.mlmodelc not found! Fallback unavailable.")
+            print("WARNING: SFace.mlmodelc not found!")
             return
         }
         self.coreMLModel = vnModel
