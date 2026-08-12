@@ -65,10 +65,14 @@ final class FaceRecognizer {
 
     // MARK: embedding
 
-    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> [Float]? {
+    func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect,
+                      orientation: CGImagePropertyOrientation = .leftMirrored) -> [Float]? {
         guard let coreMLModel = coreMLModel else { return nil }
 
-        let ci = CIImage(cvPixelBuffer: pixelBuffer)
+        // Orient the image the SAME way the face was detected, so the crop lines up
+        // and the face is upright for the model. A mismatch here crops the wrong
+        // region and wrecks the embedding (different people then all look alike).
+        let ci = CIImage(cvPixelBuffer: pixelBuffer).oriented(orientation)
         let px = VNImageRectForNormalizedRect(faceBox, Int(ci.extent.width), Int(ci.extent.height))
         // Generous margin so landmark detection + alignment have room.
         let margin = px.insetBy(dx: -px.width * 0.4, dy: -px.height * 0.4).intersection(ci.extent)

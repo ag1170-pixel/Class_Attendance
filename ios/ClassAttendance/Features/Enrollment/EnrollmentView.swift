@@ -256,11 +256,14 @@ final class FaceCaptureController: NSObject, ObservableObject,
 
         guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let request = VNDetectFaceCaptureQualityRequest()
-        try? VNImageRequestHandler(cvPixelBuffer: pixel).perform([request])
+        // Same orientation as the live recogniser (.leftMirrored front camera) so the
+        // enrolled embedding is aligned identically to what attendance compares against.
+        try? VNImageRequestHandler(cvPixelBuffer: pixel, orientation: .leftMirrored).perform([request])
         let faces = (request.results ?? [])
         if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.35 {
             latestPixelBuffer = pixel
-            latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox)
+            latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox,
+                                                             orientation: .leftMirrored)
         }
         Task { @MainActor in self.evaluate(faces) }
     }
