@@ -130,49 +130,38 @@ final class FaceTracker: NSObject, ObservableObject,
           tf.scores = carried.scores
         }
         
-        // 2. Always run face recognizer on detection frames to update history
+        // 2. Run the recogniser on detection frames; keep a rolling score history per person.
+        //    (Do NOT cache the name here — a name is only bound after it clears the
+        //    confident threshold below, so a stranger is never labelled.)
         if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
             let matches = FaceRecognizer.shared.matchAll(fp)
             for (reg, data) in matches {
                 var list = tf.scores[reg] ?? []
                 list.append(data.score)
-                // keep last 5 scores for rolling average
-                if list.count > 5 { list.removeFirst() }
+                if list.count > 5 { list.removeFirst() }   // rolling average of last 5
                 tf.scores[reg] = list
-                
-                // Cache the name on the first time we see it
-                if tf.name == nil { tf.name = data.name }
             }
         }
-        
-        // 3. Resolve identity based on highest rolling average
+
+        // 3. Resolve identity by the highest rolling average.
         var bestAvg: Float = -1.0
         var bestReg: String?
         for (reg, list) in tf.scores {
             let avg = list.reduce(0, +) / Float(list.count)
-            if avg > bestAvg {
-                bestAvg = avg
-                bestReg = reg
-            }
+            if avg > bestAvg { bestAvg = avg; bestReg = reg }
         }
-        
-        // 4. Apply strict thresholds to the smoothed average
-        if let r = bestReg {
+
+        // 4. Bind a name ONLY when the smoothed score clears the confident threshold.
+        //    Below it: no name, not present — a wrong/borderline face stays unlabelled.
+        tf.score = bestAvg
+        if let r = bestReg, bestAvg >= FaceRecognizer.shared.distPresent {
             tf.register = r
-            tf.score = bestAvg
-            if bestAvg >= FaceRecognizer.shared.distPresent {
-                tf.present = true
-            } else if bestAvg >= FaceRecognizer.shared.distReview {
-                tf.present = false
-            } else {
-                tf.register = nil
-                tf.present = false
-            }
-            
-            // Look up the name if we lost it (but retained register)
-            if tf.name == nil, let enrolled = FaceRecognizer.shared.enrolledList().first(where: { $0.register == r }) {
-                tf.name = enrolled.name
-            }
+            tf.present = true
+            tf.name = FaceRecognizer.shared.enrolledList().first(where: { $0.register == r })?.name
+        } else {
+            tf.register = nil
+            tf.present = false
+            tf.name = nil
         }
         
         next.append(tf)
