@@ -27,6 +27,7 @@ struct LiveBox {
   let rect: CGRect
   let name: String?
   let present: Bool
+  var score: Float = 0
 }
 
 /// On-device live capture: detect + track faces, recognise each ONCE (Vision
@@ -181,7 +182,7 @@ final class FaceTracker: NSObject, ObservableObject,
               tf.present = false
               tf.score = 0
           }
-          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present))
+          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score))
       }
       
       tracks = next
@@ -193,7 +194,7 @@ final class FaceTracker: NSObject, ObservableObject,
           tf.request.inputObservation = r
           tf.box = r.boundingBox
           kept.append(tf)
-          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present))
+          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score))
         }
       }
       tracks = kept
@@ -287,10 +288,11 @@ struct FaceCameraView: UIViewRepresentable {
         overlays.append(box)
 
         let label = CATextLayer()
+        let pct = String(format: "%.0f%%", max(0, b.score) * 100)
         if b.present {
-            label.string = b.name ?? "Unknown"
-        } else if b.name != nil {
-            label.string = "Hard to detect"
+            label.string = "\(b.name ?? "Unknown")  \(pct)"
+        } else if b.score > 0 {
+            label.string = "Not sure  \(pct)"   // below the match threshold — never named
         } else {
             label.string = "Not enrolled"
         }
