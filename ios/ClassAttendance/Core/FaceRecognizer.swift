@@ -67,22 +67,55 @@ final class FaceRecognizer {
 
     func featurePrint(pixelBuffer: CVPixelBuffer, faceBox: CGRect) -> [Float]? {
         guard let coreMLModel = coreMLModel else { return nil }
-        
+
         let ci = CIImage(cvPixelBuffer: pixelBuffer)
         let px = VNImageRectForNormalizedRect(faceBox, Int(ci.extent.width), Int(ci.extent.height))
-        // Expand the crop slightly to include the full head for FaceNet
-        let expanded = px.insetBy(dx: -px.width * 0.1, dy: -px.height * 0.1)
-        let crop = ci.cropped(to: expanded.intersection(ci.extent))
-        guard !crop.extent.isEmpty else { return nil }
-        
+        // Generous margin so landmark detection + alignment have room.
+        let margin = px.insetBy(dx: -px.width * 0.4, dy: -px.height * 0.4).intersection(ci.extent)
+        guard !margin.isNull, !margin.isEmpty else { return nil }
+        // Render the crop with its origin at (0,0) so all coordinates are simple.
+        let crop = ci.cropped(to: margin)
+            .transformed(by: CGAffineTransform(translationX: -margin.minX, y: -margin.minY))
+        let cw = crop.extent.width, ch = crop.extent.height
+
+        // ALIGNMENT: normalise scale + centring from the eyes (this is what the Mac's
+        // SFace does and why it discriminates cleanly; without it, unaligned faces
+        // collapse together and cause false matches). No rotation = low risk.
+        var aligned = crop
+        let lm = VNDetectFaceLandmarksRequest()
+        try? VNImageRequestHandler(ciImage: crop).perform([lm])
+        if let obs = lm.results?.first,
+           let le = obs.landmarks?.leftEye, let re = obs.landmarks?.rightEye {
+            let bb = obs.boundingBox   // normalized within the crop, bottom-left origin
+            func eyeCenter(_ region: VNFaceLandmarkRegion2D) -> CGPoint {
+                let p = region.normalizedPoints
+                let mx = p.map { $0.x }.reduce(0, +) / CGFloat(p.count)
+                let my = p.map { $0.y }.reduce(0, +) / CGFloat(p.count)
+                return CGPoint(x: (bb.minX + mx * bb.width) * cw,
+                               y: (bb.minY + my * bb.height) * ch)
+            }
+            let L = eyeCenter(le), R = eyeCenter(re)
+            let eyeC = CGPoint(x: (L.x + R.x) / 2, y: (L.y + R.y) / 2)
+            let eyeDist = hypot(R.x - L.x, R.y - L.y)
+            if eyeDist > 4 {
+                let side = eyeDist * 2.7                      // face ≈ 2.7× the inter-eye span
+                let sq = CGRect(x: eyeC.x - side / 2,
+                                y: eyeC.y - side * 0.58,      // eyes ~42% from the top
+                                width: side, height: side).intersection(crop.extent)
+                if sq.width > 20, sq.height > 20 {
+                    aligned = crop.cropped(to: sq)
+                        .transformed(by: CGAffineTransform(translationX: -sq.minX, y: -sq.minY))
+                }
+            }
+        }
+
         let req = VNCoreMLRequest(model: coreMLModel)
-        req.imageCropAndScaleOption = .scaleFill // FaceNet expects 160x160 RGB
-        try? VNImageRequestHandler(ciImage: crop).perform([req])
-        
+        req.imageCropAndScaleOption = .scaleFill
+        try? VNImageRequestHandler(ciImage: aligned).perform([req])
+
         guard let result = req.results?.first as? VNCoreMLFeatureValueObservation,
               let multiArray = result.featureValue.multiArrayValue else { return nil }
-              
-        // Extract 512-d vector
+
         var embedding: [Float] = []
         for i in 0..<multiArray.count {
             embedding.append(multiArray[i].floatValue)
