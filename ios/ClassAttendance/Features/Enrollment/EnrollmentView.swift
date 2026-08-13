@@ -14,20 +14,25 @@ struct EnrollmentView: View {
     @State private var registerNo = ""
     @State private var fullName = ""
     @State private var consent = false
-    @State private var enrollCount = 0
+    @State private var captured: [[Float]] = []      // the 3 face embeddings
+    @State private var thumbs: [UIImage] = []         // matching thumbnails
     @State private var showSuccess = false
     @State private var enrolledList: [(register: String, name: String)] = []
     @FocusState private var isInputActive: Bool
-    
-    var isDuplicate: Bool {
-        enrollCount == 0 && enrolledList.contains(where: { $0.register == registerNo })
+
+    private let need = 3   // require 3 photos for reliable recognition
+
+    var isDuplicate: Bool { enrolledList.contains(where: { $0.register == registerNo }) }
+
+    var canEnroll: Bool {
+        captured.count == need && consent && !registerNo.isEmpty && !fullName.isEmpty && !isDuplicate
     }
 
     var body: some View {
         Form {
             Section("Student") {
                 TextField("Register No", text: $registerNo)
-                    .focused($isInputActive)
+                    .focused($isInputActive).textInputAutocapitalization(.characters)
                 TextField("Full name", text: $fullName)
                     .focused($isInputActive)
             }
@@ -37,19 +42,11 @@ struct EnrollmentView: View {
                 Text("Biometric data is stored by the university, encrypted, and can be revoked.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Capture") {
+            Section("Capture \(need) photos") {
                 ZStack {
-                    if let frozen = cam.frozenImage {
-                        // Show frozen captured frame
-                        Image(uiImage: frozen)
-                            .resizable().scaledToFill()
-                            .frame(height: 260)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    } else {
-                        CameraPreview(session: cam.session)
-                            .frame(height: 260)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
+                    CameraPreview(session: cam.session)
+                        .frame(height: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     if let msg = cam.unavailable {
                         RoundedRectangle(cornerRadius: 12).fill(Theme.surface2).frame(height: 260)
                         VStack(spacing: 8) {
@@ -61,65 +58,63 @@ struct EnrollmentView: View {
                     }
                 }
                 if cam.unavailable == nil {
-                    if cam.frozenImage != nil {
-                        // Frozen state — show confirm/retake
-                        HStack {
-                            Button { cam.unfreeze() } label: {
-                                Label("Retake", systemImage: "arrow.counterclockwise")
+                    // Progress: 3 thumbnail slots + counter.
+                    HStack(spacing: 10) {
+                        ForEach(0..<need, id: \.self) { i in
+                            if i < thumbs.count {
+                                Image(uiImage: thumbs[i]).resizable().scaledToFill()
+                                    .frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.present, lineWidth: 2))
+                            } else {
+                                RoundedRectangle(cornerRadius: 8).fill(Theme.surface2)
+                                    .frame(width: 46, height: 46)
+                                    .overlay(Image(systemName: "plus").foregroundStyle(Theme.dim))
                             }
-                            .buttonStyle(.bordered)
-                            Spacer()
-                            Label("Ready to enroll", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
                         }
-                    } else {
-                        // Live state — show quality + capture button
-                        Label(cam.quality.message, systemImage: cam.quality.symbol)
-                            .foregroundStyle(cam.quality.isReady ? .green : .orange)
-                        if cam.quality.isReady {
-                            Button { cam.freeze() } label: {
-                                Label("Capture Photo", systemImage: "camera.shutter.button")
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                }
-            }
-
-            if enrollCount > 0 {
-                Section("Enrolled Photos") {
-                    HStack {
-                        Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.present)
-                        Text("\(enrollCount) photo\(enrollCount == 1 ? "" : "s") enrolled")
                         Spacer()
-                        Button("Add Another") {
-                            cam.unfreeze()
+                        Text("\(captured.count)/\(need)")
+                            .font(.headline).monospacedDigit()
+                            .foregroundStyle(captured.count == need ? Theme.present : Theme.dim)
+                    }
+                    Label(cam.quality.message, systemImage: cam.quality.symbol)
+                        .foregroundStyle(cam.quality.isReady ? .green : .orange)
+                    if captured.count < need {
+                        Button {
+                            if let s = cam.grabSample() { captured.append(s.0); thumbs.append(s.1) }
+                        } label: {
+                            Label("Capture Photo (\(captured.count)/\(need))", systemImage: "camera.shutter.button")
                         }
-                        .font(.subheadline).foregroundStyle(Theme.accent)
+                        .buttonStyle(.borderedProminent).disabled(!cam.quality.isReady)
+                    } else {
+                        HStack {
+                            Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.present)
+                            Text("\(need) photos captured — ready to enroll")
+                            Spacer()
+                            Button("Retake") { captured.removeAll(); thumbs.removeAll() }
+                                .font(.subheadline).foregroundStyle(Theme.accent)
+                        }
                     }
                 }
             }
 
             if isDuplicate {
-                Text("This Register No is already enrolled. Delete it from the list below if you want to re-enroll.")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                Text("This Register No is already enrolled. Delete it below to re-enroll.")
+                    .font(.footnote).foregroundStyle(.red)
             }
 
-            Button(showSuccess ? "Enrolled ✓" : (enrollCount > 0 ? "Add This Photo" : "Enroll Face")) {
-                if cam.enroll(register: registerNo, name: fullName) {
-                    enrollCount += 1
-                    showSuccess = true
-                    // Auto-unfreeze after a moment so they can add more
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        showSuccess = false
-                    }
-                    enrolledList = FaceRecognizer.shared.enrolledList()
+            Button(showSuccess ? "Enrolled ✓" : "Enroll Face") {
+                for print in captured {
+                    FaceRecognizer.shared.enroll(register: registerNo, name: fullName, print: print)
+                }
+                showSuccess = true
+                enrolledList = FaceRecognizer.shared.enrolledList()
+                captured.removeAll(); thumbs.removeAll()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    showSuccess = false; registerNo = ""; fullName = ""; consent = false
                 }
             }
-            .disabled(showSuccess || cam.frozenImage == nil || isDuplicate
-                      || !(consent && !registerNo.isEmpty && !fullName.isEmpty))
-            
+            .disabled(showSuccess || !canEnroll)
+
             if !enrolledList.isEmpty {
                 Section("All Enrolled Students") {
                     ForEach(enrolledList, id: \.register) { student in
@@ -203,11 +198,15 @@ final class FaceCaptureController: NSObject, ObservableObject,
         frozenImage = nil
     }
 
-    /// Store the last good face under this student. Returns false if no good frame yet.
-    func enroll(register: String, name: String) -> Bool {
-        guard let p = latestPrint else { return false }
-        FaceRecognizer.shared.enroll(register: register, name: name, print: p)
-        return true
+    /// Grab the current good face: its embedding + a thumbnail (nil if no good frame).
+    /// Uses the SAME .leftMirrored orientation as recognition so enrolled and live
+    /// embeddings line up.
+    func grabSample() -> ([Float], UIImage)? {
+        guard let p = latestPrint, let pb = latestPixelBuffer else { return nil }
+        let ci = CIImage(cvPixelBuffer: pb).oriented(.leftMirrored)
+        let ctx = CIContext()
+        guard let cg = ctx.createCGImage(ci, from: ci.extent) else { return (p, UIImage()) }
+        return (p, UIImage(cgImage: cg))
     }
 
     func start() {
