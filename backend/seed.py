@@ -63,7 +63,7 @@ def seed(db: Database) -> dict:
             "INSERT INTO section_roster(section_id,student_id) VALUES (?,?)",
             (section, sid),
         )
-        students.append({"id": sid, "name": name, "register_no": f"REG{i:03d}"})
+        students.append({"id": sid, "name": name, "register_no": register_no})
 
     return {
         "institution": inst, "room": room, "camera": cam,

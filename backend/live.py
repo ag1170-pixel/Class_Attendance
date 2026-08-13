@@ -21,16 +21,18 @@ from .db import DEFAULT_DB, Database
 from .services import AttendanceService, ConsentError, WorkflowError
 
 
-# ── camera capture -> one best embedding ─────────────────────────────────────
-def capture_embedding(source: str, seconds: float):
-    """Grab the highest-quality face embedding seen in the window."""
+# ── camera capture -> several good, time-spread embeddings ───────────────────
+def capture_embeddings(source: str, seconds: float, shots: int):
+    """Collect up to `shots` good face embeddings spread across the capture window,
+    so the templates cover natural head-turn / expression variation (same idea as
+    the iPhone's guided 3-shot enrollment)."""
     from recognition import config
     from recognition.capture import open_source
     from recognition.faces import FaceEngine
 
     engine = FaceEngine()
     src = open_source(source)
-    best = None  # (embedding, inter_eye_px)
+    collected = []  # (embedding, inter_eye_px), in time order
     try:
         for frame in src.frames(max_seconds=seconds):
             faces = engine.detect(frame)
@@ -39,11 +41,17 @@ def capture_embedding(source: str, seconds: float):
             f = max(faces, key=lambda x: x.inter_eye_px)
             if f.inter_eye_px < config.MIN_INTEREYE_PX:
                 continue
-            if best is None or f.inter_eye_px > best[1]:
-                best = (engine.embed(frame, f), f.inter_eye_px)
+            collected.append((engine.embed(frame, f), f.inter_eye_px))
     finally:
         src.release()
-    return best
+
+    if not collected:
+        return []
+    if len(collected) <= shots:
+        return [e for e, _ in collected]
+    # pick `shots` frames evenly spread across time -> varied micro-poses
+    idxs = [round(i * (len(collected) - 1) / (shots - 1)) for i in range(shots)]
+    return [collected[i][0] for i in idxs]
 
 
 # ── DB lookups (friendly resolution for the demo's single class) ─────────────
@@ -80,21 +88,22 @@ def cmd_enroll(db, args) -> int:
         print(f"No student with register_no {args.who}. Run `init` first.", file=sys.stderr)
         return 1
 
-    print(f"Enrolling {st['full_name']} ({args.who}) from {args.source}…")
-    cap = capture_embedding(args.source, args.seconds)
-    if cap is None:
+    print(f"Enrolling {st['full_name']} ({args.who}) from {args.source} — "
+          f"slowly turn your head left & right during the {args.seconds:.0f}s capture…")
+    embs = capture_embeddings(args.source, args.seconds, args.shots)
+    if not embs:
         print("No usable face captured. Better light / move closer and retry.", file=sys.stderr)
         return 1
-    emb, ied = cap
 
     # Consent is required before any biometric write (enforced by the service).
     svc.grant_consent(st["id"], policy_version="v1", granted_by=only_teacher(db))
     try:
-        svc.enroll_face(st["id"], emb.tolist(), quality_score=min(1.0, ied / 120.0))
+        for emb in embs:
+            svc.enroll_face(st["id"], emb.tolist(), quality_score=1.0)
     except ConsentError as e:
         print(str(e), file=sys.stderr)
         return 1
-    print(f"✓ Stored face template in DB (inter-eye {ied:.0f}px).")
+    print(f"✓ Stored {len(embs)} face template(s) in DB (multi-shot).")
     return 0
 
 
@@ -158,7 +167,9 @@ def main() -> int:
     pe = sub.add_parser("enroll")
     pe.add_argument("--who", required=True, help="student register_no, e.g. REG001")
     pe.add_argument("--source", default="webcam", help="webcam[:N] | file | rtsp://...")
-    pe.add_argument("--seconds", type=float, default=4.0)
+    pe.add_argument("--seconds", type=float, default=6.0)
+    pe.add_argument("--shots", type=int, default=3,
+                    help="how many face templates to store per student (default 3)")
 
     pa = sub.add_parser("attend")
     pa.add_argument("--source", default="webcam", help="webcam[:N] | file | rtsp://...")
