@@ -21,11 +21,31 @@ struct EnrollmentView: View {
     @FocusState private var isInputActive: Bool
 
     private let need = 3   // require 3 photos for reliable recognition
+    @State private var firstTurnSign: Double = 0   // remembers which way they turned for shot 2
+
+    private let stepHints = ["Look straight at the camera",
+                             "Turn your head slightly to one side",
+                             "Now turn slightly the other way"]
 
     var isDuplicate: Bool { enrolledList.contains(where: { $0.register == registerNo }) }
 
     var canEnroll: Bool {
         captured.count == need && consent && !registerNo.isEmpty && !fullName.isEmpty && !isDuplicate
+    }
+
+    /// Is the head pose right for the current shot? (frontal, then two opposite turns.)
+    /// If Vision can't read the angle, we don't block — quality still gates capture.
+    private func poseOK() -> Bool {
+        guard let y = cam.yaw else { return true }
+        switch captured.count {
+        case 0:  return abs(y) <= 0.22                                   // frontal
+        case 1:  return abs(y) >= 0.11                                   // turned either way
+        default: return abs(y) >= 0.11 && (firstTurnSign == 0 || y * firstTurnSign < 0)  // opposite side
+        }
+    }
+
+    private var readyToCapture: Bool {
+        cam.unavailable == nil && cam.quality.isReady && poseOK()
     }
 
     var body: some View {
@@ -47,6 +67,10 @@ struct EnrollmentView: View {
                     CameraPreview(session: cam.session)
                         .frame(height: 260)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                    if cam.unavailable == nil && captured.count < need {
+                        PoseGuideOverlay(step: captured.count, ready: readyToCapture)
+                            .frame(height: 260).allowsHitTesting(false)
+                    }
                     if let msg = cam.unavailable {
                         RoundedRectangle(cornerRadius: 12).fill(Theme.surface2).frame(height: 260)
                         VStack(spacing: 8) {
@@ -76,15 +100,21 @@ struct EnrollmentView: View {
                             .font(.headline).monospacedDigit()
                             .foregroundStyle(captured.count == need ? Theme.present : Theme.dim)
                     }
-                    Label(cam.quality.message, systemImage: cam.quality.symbol)
-                        .foregroundStyle(cam.quality.isReady ? .green : .orange)
                     if captured.count < need {
+                        Text(stepHints[captured.count]).font(.subheadline.bold())
+                        Label(readyToCapture ? "Hold still — ready to capture"
+                                             : (poseOK() ? cam.quality.message : "Match the pose above"),
+                              systemImage: readyToCapture ? "checkmark.circle.fill" : cam.quality.symbol)
+                            .foregroundStyle(readyToCapture ? .green : .orange)
                         Button {
-                            if let s = cam.grabSample() { captured.append(s.0); thumbs.append(s.1) }
+                            if let s = cam.grabSample() {
+                                if captured.count == 1 { firstTurnSign = (cam.yaw ?? 0) >= 0 ? 1 : -1 }
+                                captured.append(s.0); thumbs.append(s.1)
+                            }
                         } label: {
-                            Label("Capture Photo (\(captured.count)/\(need))", systemImage: "camera.shutter.button")
+                            Label("Capture \(captured.count + 1) of \(need)", systemImage: "camera.shutter.button")
                         }
-                        .buttonStyle(.borderedProminent).disabled(!cam.quality.isReady)
+                        .buttonStyle(.borderedProminent).disabled(!readyToCapture)
                     } else {
                         HStack {
                             Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.present)
@@ -177,6 +207,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
     @Published var quality = Quality()
     @Published var unavailable: String?
     @Published var frozenImage: UIImage?
+    @Published var yaw: Double?          // head turn (radians): ~0 = straight, ± = turned
     private let queue = DispatchQueue(label: "face.capture")
     // Latest good face embedding, kept ready for the Enroll button.
     private nonisolated(unsafe) var latestPrint: [Float]?
@@ -254,17 +285,20 @@ final class FaceCaptureController: NSObject, ObservableObject,
         guard frameCount % 3 == 0 else { return }
 
         guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let request = VNDetectFaceCaptureQualityRequest()
+        let quality = VNDetectFaceCaptureQualityRequest()
+        let rect = VNDetectFaceRectanglesRequest()   // gives head yaw for pose guidance
         // Same orientation as the live recogniser (.leftMirrored front camera) so the
         // enrolled embedding is aligned identically to what attendance compares against.
-        try? VNImageRequestHandler(cvPixelBuffer: pixel, orientation: .leftMirrored).perform([request])
-        let faces = (request.results ?? [])
+        try? VNImageRequestHandler(cvPixelBuffer: pixel, orientation: .leftMirrored)
+            .perform([quality, rect])
+        let faces = (quality.results ?? [])
+        let yawVal = rect.results?.first?.yaw?.doubleValue
         if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.35 {
             latestPixelBuffer = pixel
             latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox,
                                                              orientation: .leftMirrored)
         }
-        Task { @MainActor in self.evaluate(faces) }
+        Task { @MainActor in self.yaw = yawVal; self.evaluate(faces) }
     }
 
     @MainActor
@@ -288,6 +322,49 @@ final class FaceCaptureController: NSObject, ObservableObject,
 }
 
 /// Minimal UIKit bridge for the camera preview layer.
+/// Semi-transparent animated guide: a pulsing face oval + turn arrows telling the
+/// user how to pose for each enrollment shot. Turns green when the pose is right.
+struct PoseGuideOverlay: View {
+    let step: Int          // 0 = look straight, 1 & 2 = turn
+    let ready: Bool
+    @State private var pulse = false
+    @State private var slide = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.10)
+
+            Ellipse()
+                .strokeBorder(ready ? Color.green : Color.white.opacity(0.85),
+                              style: StrokeStyle(lineWidth: 3, dash: [9, 7]))
+                .frame(width: 150, height: 195)
+                .scaleEffect(pulse ? 1.03 : 1.0)
+                .shadow(color: ready ? Color.green.opacity(0.7) : .clear, radius: 8)
+
+            if step >= 1 {
+                // Two chevrons sliding side-to-side = "turn your head".
+                HStack {
+                    Image(systemName: "chevron.left")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 226)
+                .offset(x: slide ? 12 : -12)
+            } else {
+                Image(systemName: "face.smiling")
+                    .font(.system(size: 24)).foregroundStyle(.white.opacity(0.75))
+                    .offset(y: 58)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+            withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) { slide = true }
+        }
+    }
+}
+
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
