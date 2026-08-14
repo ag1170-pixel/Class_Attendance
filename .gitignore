@@ -24,3 +24,8 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# scratch / superseded conversion helpers (SFace converter is ios/convert_sface_to_coreml.py)
+convert_onnx.py
+download_coreml.py
+test_faces.swift
