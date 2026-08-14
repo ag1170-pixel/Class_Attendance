@@ -23,6 +23,9 @@ struct SettingsView: View {
                     NavigationLink { EnrollmentView() } label: {
                         Label("Enroll a student", systemImage: "person.crop.circle.badge.plus")
                     }
+                    NavigationLink { CheckInView() } label: {
+                        Label("Student check-in (Bluetooth)", systemImage: "wave.3.right")
+                    }
                 }
                 Section("Data Management") {
                     Button(role: .destructive) {

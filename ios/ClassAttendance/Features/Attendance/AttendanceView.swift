@@ -123,9 +123,12 @@ private struct TriggerScreen: View {
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
             Spacer()
             Button { onStart() } label: {
-                Label("Take Attendance", systemImage: "checkmark.seal")
+                Label("Face Attendance", systemImage: "camera.viewfinder")
             }
             .buttonStyle(FilledButton()).padding(.horizontal, 24)
+            NavigationLink { BluetoothAttendanceView(section: vm.section) } label: {
+                Label("Bluetooth Attendance", systemImage: "dot.radiowaves.left.and.right")
+            }.padding(.top, 2)
             NavigationLink { ClassQRView(section: vm.section) } label: {
                 Text("Show class QR")
             }.padding(.top, 2)
