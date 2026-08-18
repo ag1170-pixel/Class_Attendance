@@ -1,30 +1,59 @@
 """Write attendance to Supabase via its REST API — stdlib only.
 
-No psycopg, no DB password: uses the project's publishable key + urllib, so the
-Mac (`backend.live --cloud`) and the iPhone write to the SAME cloud database.
+No psycopg, no DB password: uses Supabase Auth (teacher sign-in) + urllib, so the
+Mac (`backend.live attend --cloud`) and the iPhone write to the SAME cloud database,
+both as the same authenticated teacher identity.
 
-DEMO note: the publishable key + open RLS insert is fine for a prototype; in
-production put this behind Supabase Auth (teacher role) and scoped policies.
+Writes are RLS-scoped to sections that teacher owns (see docs/SECURITY_REVIEW.md —
+the anon key ships inside the iPhone app and is publicly extractable, so it can
+never be allowed to write attendance or read student PII; it stays read-only for
+non-sensitive class/schedule data).
+
+Demo credentials below are the same teacher account the iPhone app signs in with
+(a single shared demo account, matching this prototype's single hardcoded teacher
+row) — override via env vars for anything beyond the demo.
 """
 from __future__ import annotations
 
 import json
+import os
+import urllib.error
 import urllib.request
 from typing import List
 
 SUPABASE_URL = "https://mystjdepvvmfihcpiftx.supabase.co/rest/v1"
+AUTH_URL = "https://mystjdepvvmfihcpiftx.supabase.co/auth/v1"
 PUBLISHABLE_KEY = "sb_publishable_HvyNIVQ4emjhfQb5ZlkVmg_rCW9cvix"
 
-_HEADERS = {
-    "apikey": PUBLISHABLE_KEY,
-    "Authorization": f"Bearer {PUBLISHABLE_KEY}",
-    "Content-Type": "application/json",
-}
+TEACHER_EMAIL = os.environ.get("SUPABASE_TEACHER_EMAIL", "classattendance.teacher@gmail.com")
+TEACHER_PASSWORD = os.environ.get("SUPABASE_TEACHER_PASSWORD", "ClassAttendance!Demo2026")
 
 # Seeded demo class in the cloud (see docs). One teacher/section/room for the demo.
 DEMO_SECTION = "77777777-7777-7777-7777-777777777777"
 DEMO_TEACHER = "55555555-5555-5555-5555-555555555555"
 DEMO_ROOM = "33333333-3333-3333-3333-333333333333"
+
+_access_token: str | None = None
+
+
+def _sign_in() -> str:
+    """Sign in as the demo teacher and cache the access token for this process."""
+    global _access_token
+    if _access_token:
+        return _access_token
+    body = json.dumps({"email": TEACHER_EMAIL, "password": TEACHER_PASSWORD}).encode()
+    req = urllib.request.Request(
+        f"{AUTH_URL}/token?grant_type=password", data=body,
+        headers={"apikey": PUBLISHABLE_KEY, "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Supabase teacher sign-in failed: {e.read().decode()}") from e
+    _access_token = data["access_token"]
+    return _access_token
 
 
 def submit_demo(present_registers: List[str], capture_path: str = "webcam") -> str:
@@ -34,7 +63,11 @@ def submit_demo(present_registers: List[str], capture_path: str = "webcam") -> s
 
 
 def _request(method: str, path: str, body=None, prefer=None):
-    headers = dict(_HEADERS)
+    headers = {
+        "apikey": PUBLISHABLE_KEY,
+        "Authorization": f"Bearer {_sign_in()}",
+        "Content-Type": "application/json",
+    }
     if prefer:
         headers["Prefer"] = prefer
     data = json.dumps(body).encode() if body is not None else None

@@ -83,10 +83,33 @@ silently was not, for every class, indefinitely — arguably worse than the orig
   not exploitable on its own) — low priority, move to a dedicated schema when
   convenient.
 
+## Update 2026-08-18 — teacher authentication added, writes restored
+Added real Supabase Auth for the teacher (`classattendance.teacher@gmail.com`,
+linked to the existing `app_user` row via a new `auth_user_id` column) and scoped
+every write policy to `auth.uid()` — a signed-in teacher can only write/read their
+**own** sections, never another teacher's or an anonymous request's. Both the camera
+flow (`AttendanceView`) and the Bluetooth flow (`BluetoothAttendanceView`) now sign
+in via **Settings → Cloud sync → Sign in** before Submit will succeed; the Mac's
+`backend.live attend --cloud` signs in the same way via `supabase_sink.py`.
+
+**Verified with the same PoC pattern**: signed-in write to the teacher's own
+section → `201`; the same token attempting to write under a *different*
+`teacher_id` → `403`; anonymous request → `401`; anonymous student-PII read →
+empty. All four checked together in one pass, artifacts cleaned up after each test.
+
+**A build-time bug found and fixed along the way**: the new policies chained
+through `app_user` → `section` → `section_roster` → `student` to prove "this
+teacher owns this class," but `section` only had an `anon`-role policy — RLS
+policies are role-scoped, so a policy written for `anon` does not apply to
+`authenticated` requests. That silently zeroed out every nested lookup for a
+legitimately signed-in teacher too, not just attackers. Since `section` data
+(course/room/schedule) was already fully public via `anon`, granting
+`authenticated` the same read closed the gap with no new exposure.
+
 ## Summary
 | Finding | Severity | Status |
 |---|---|---|
 | Anon could forge attendance / read student PII | Critical | Fixed |
 | Failed writes showed false "submitted" success | Medium | Fixed |
-| No teacher authentication (root cause of both) | High | **Open — next step** |
+| No teacher authentication (root cause of both) | High | **Fixed** — Supabase Auth, RLS scoped to `auth.uid()` |
 | `vector` extension in `public` schema | Low | Open, low priority |

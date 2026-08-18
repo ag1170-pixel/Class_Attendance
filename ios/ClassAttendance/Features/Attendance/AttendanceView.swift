@@ -13,6 +13,7 @@ final class AttendanceViewModel: ObservableObject {
     /// nil = syncing/unknown, true = confirmed written to the cloud DB, false = failed
     /// (never silently swallowed — the teacher must know if it didn't actually save).
     @Published var cloudSynced: Bool?
+    @Published var syncError: String?
 
     let section: ClassSection
     init(section: ClassSection) {
@@ -82,9 +83,10 @@ final class AttendanceViewModel: ObservableObject {
                 cloudSynced = true
             } catch {
                 // Never swallow this — a silent failure here means the teacher believes
-                // attendance was recorded when it wasn't (e.g. blocked by RLS with no
-                // teacher auth wired up yet). Surface it so they know to retry.
+                // attendance was recorded when it wasn't. Surface the real reason
+                // (e.g. "sign in first") so they know exactly what to do.
                 cloudSynced = false
+                syncError = error.localizedDescription
             }
         }
     }
@@ -297,7 +299,7 @@ private struct SubmittedScreen: View {
                 Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 72))
                     .foregroundStyle(Theme.absent)
                 Text("Saved on this phone only").font(.title2.bold())
-                Text("Couldn't reach the cloud database — attendance was NOT recorded for other devices.")
+                Text(vm.syncError ?? "Couldn't reach the cloud database — attendance was NOT recorded for other devices.")
                     .font(.footnote).foregroundStyle(Theme.dim)
                     .multilineTextAlignment(.center).padding(.horizontal, 32)
                 Button("Retry") { Task { await vm.submit() } }

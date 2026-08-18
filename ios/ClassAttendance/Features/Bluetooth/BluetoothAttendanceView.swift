@@ -9,6 +9,7 @@ struct BluetoothAttendanceView: View {
     @State private var submitted = false
     @State private var submitting = false
     @State private var syncFailed = false
+    @State private var syncErrorText = ""
 
     // register -> name, from the class roster (demo roster for now).
     private let names: [String: String] = Dictionary(
@@ -84,7 +85,8 @@ struct BluetoothAttendanceView: View {
     private var submitBar: some View {
         VStack(spacing: 6) {
             if syncFailed {
-                Text("Couldn't reach the cloud database — not recorded. Try again.")
+                Text(syncErrorText.isEmpty ? "Couldn't reach the cloud database — not recorded. Try again."
+                                           : syncErrorText)
                     .font(.footnote).foregroundStyle(Theme.absent)
             }
             Button {
@@ -98,6 +100,7 @@ struct BluetoothAttendanceView: View {
                     } catch {
                         // Don't lie to the teacher: a failed write must NOT show success.
                         submitting = false; syncFailed = true
+                        syncErrorText = error.localizedDescription
                     }
                 }
             } label: {

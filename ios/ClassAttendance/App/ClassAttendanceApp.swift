@@ -26,4 +26,8 @@ struct ClassAttendanceApp: App {
             }
         }
     }
+
+    init() {
+        Task { await Supabase.restoreSession() }   // silent — never prompts
+    }
 }
