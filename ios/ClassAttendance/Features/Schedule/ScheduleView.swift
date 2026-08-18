@@ -3,6 +3,7 @@ import SwiftUI
 /// Today's classes for the signed-in teacher. Search, or add a course by QR.
 struct ScheduleView: View {
     @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var timetable: TimetableStore
     @State private var classes = DemoData.sections
     @State private var query = ""
     @State private var showScanner = false
@@ -17,6 +18,13 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack {
             List {
+                if timetable.nextClass() != nil {
+                    Section {
+                        NextClassCard(store: timetable)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    }
+                }
                 Section("Today") {
                     ForEach(filtered) { c in
                         NavigationLink(value: c) { ClassRow(section: c) }

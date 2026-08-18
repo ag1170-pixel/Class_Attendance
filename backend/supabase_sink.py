@@ -25,8 +25,8 @@ SUPABASE_URL = "https://mystjdepvvmfihcpiftx.supabase.co/rest/v1"
 AUTH_URL = "https://mystjdepvvmfihcpiftx.supabase.co/auth/v1"
 PUBLISHABLE_KEY = "sb_publishable_HvyNIVQ4emjhfQb5ZlkVmg_rCW9cvix"
 
-TEACHER_EMAIL = os.environ.get("SUPABASE_TEACHER_EMAIL", "classattendance.teacher@gmail.com")
-TEACHER_PASSWORD = os.environ.get("SUPABASE_TEACHER_PASSWORD", "ClassAttendance!Demo2026")
+TEACHER_EMAIL = os.environ.get("SUPABASE_TEACHER_EMAIL", "admin@gmail.com")
+TEACHER_PASSWORD = os.environ.get("SUPABASE_TEACHER_PASSWORD", "1234")
 
 # Seeded demo class in the cloud (see docs). One teacher/section/room for the demo.
 DEMO_SECTION = "77777777-7777-7777-7777-777777777777"

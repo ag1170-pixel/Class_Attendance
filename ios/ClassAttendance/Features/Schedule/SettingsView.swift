@@ -76,8 +76,8 @@ struct SettingsView: View {
 private struct CloudSignInView: View {
     let onSuccess: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var email = "classattendance.teacher@gmail.com"
-    @State private var password = ""
+    @State private var email = "admin@gmail.com"
+    @State private var password = "1234"
     @State private var error: String?
     @State private var loading = false
 

@@ -10,6 +10,7 @@ struct ClassAttendanceApp: App {
         backendURL: URL(string: ProcessInfo.processInfo.environment["BACKEND_URL"]
                         ?? "http://127.0.0.1:8000")!
     )
+    @StateObject private var timetable = TimetableStore()
 
     var body: some Scene {
         WindowGroup {
@@ -18,7 +19,7 @@ struct ClassAttendanceApp: App {
                     NavigationStack { AttendanceView(section: DemoData.sections[0]) }
                         .environmentObject(auth)
                 } else {
-                    MainTabView().environmentObject(auth)
+                    MainTabView().environmentObject(auth).environmentObject(timetable)
                 }
             } else {
                 LoginView()

@@ -7,8 +7,8 @@ struct MainTabView: View {
         TabView(selection: $sel) {
             ScheduleView()
                 .tabItem { Label("Today", systemImage: "calendar") }.tag(0)
-            TimetableView()
-                .tabItem { Label("Timetable", systemImage: "square.grid.3x3") }.tag(1)
+            NavigationStack { MyTimetableView() }
+                .tabItem { Label("Timetable", systemImage: "calendar") }.tag(1)
             ReportsView()
                 .tabItem { Label("Reports", systemImage: "chart.bar") }.tag(2)
             HistoryView()
