@@ -24,22 +24,35 @@ enum Supabase {
         return r
     }
 
+    /// Fires the request and throws unless the response is 2xx — never let a
+    /// blocked write (RLS, auth, etc.) look like a silent success.
+    private static func send(_ req: URLRequest) async throws -> Data {
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
+            throw NSError(domain: "Supabase", code: code, userInfo: [
+                NSLocalizedDescriptionKey: "Request failed (\(code)): "
+                    + (String(data: data, encoding: .utf8) ?? "no body")])
+        }
+        return data
+    }
+
     /// Write a submitted attendance session + one record per rostered student.
     static func submitAttendance(presentRegisters: Set<String>) async throws {
         // 1) roster: register_no -> student id
         var comp = URLComponents(string: "\(restURL)/section_roster")!
         comp.queryItems = [.init(name: "section_id", value: "eq.\(demoSection)"),
                            .init(name: "select", value: "student(id,register_no)")]
-        let (rData, _) = try await URLSession.shared.data(for: request(comp.url!))
+        let rData = try await send(request(comp.url!))
         struct RRow: Decodable { let student: S; struct S: Decodable { let id: String; let register_no: String } }
         let roster = try JSONDecoder().decode([RRow].self, from: rData)
 
         // 2) create the session
         let sBody: [String: Any] = ["section_id": demoSection, "teacher_id": demoTeacher,
                                     "room_id": demoRoom, "capture_path": "iphone", "status": "submitted"]
-        let (sData, _) = try await URLSession.shared.data(
-            for: request(URL(string: "\(restURL)/attendance_session")!,
-                         method: "POST", json: [sBody], prefer: "return=representation"))
+        let sData = try await send(
+            request(URL(string: "\(restURL)/attendance_session")!,
+                    method: "POST", json: [sBody], prefer: "return=representation"))
         struct Sess: Decodable { let id: String }
         guard let sid = (try JSONDecoder().decode([Sess].self, from: sData)).first?.id else {
             throw URLError(.badServerResponse)
@@ -51,9 +64,9 @@ enum Supabase {
              "status": presentRegisters.contains($0.student.register_no) ? "present" : "absent",
              "source": "auto"]
         }
-        _ = try await URLSession.shared.data(
-            for: request(URL(string: "\(restURL)/attendance_record")!,
-                         method: "POST", json: records, prefer: "return=minimal"))
+        _ = try await send(
+            request(URL(string: "\(restURL)/attendance_record")!,
+                    method: "POST", json: records, prefer: "return=minimal"))
     }
 
     static func fetchSections() async throws -> [ClassSection] {

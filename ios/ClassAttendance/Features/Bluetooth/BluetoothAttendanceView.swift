@@ -8,6 +8,7 @@ struct BluetoothAttendanceView: View {
     @StateObject private var ble = ProximityService()
     @State private var submitted = false
     @State private var submitting = false
+    @State private var syncFailed = false
 
     // register -> name, from the class roster (demo roster for now).
     private let names: [String: String] = Dictionary(
@@ -81,20 +82,31 @@ struct BluetoothAttendanceView: View {
     }
 
     private var submitBar: some View {
-        Button {
-            submitting = true
-            let present = ble.presentRegisters
-            Task {
-                try? await Supabase.submitAttendance(presentRegisters: present)
-                submitting = false; submitted = true
-                ble.stop()
+        VStack(spacing: 6) {
+            if syncFailed {
+                Text("Couldn't reach the cloud database — not recorded. Try again.")
+                    .font(.footnote).foregroundStyle(Theme.absent)
             }
-        } label: {
-            if submitting { ProgressView() }
-            else { Label("Submit \(inRange.count) present", systemImage: "checkmark.seal") }
+            Button {
+                submitting = true; syncFailed = false
+                let present = ble.presentRegisters
+                Task {
+                    do {
+                        try await Supabase.submitAttendance(presentRegisters: present)
+                        submitting = false; submitted = true
+                        ble.stop()
+                    } catch {
+                        // Don't lie to the teacher: a failed write must NOT show success.
+                        submitting = false; syncFailed = true
+                    }
+                }
+            } label: {
+                if submitting { ProgressView() }
+                else { Label("Submit \(inRange.count) present", systemImage: "checkmark.seal") }
+            }
+            .buttonStyle(FilledButton())
+            .disabled(inRange.isEmpty || submitting)
         }
-        .buttonStyle(FilledButton())
-        .disabled(inRange.isEmpty || submitting)
         .padding(.horizontal, 24).padding(.bottom, 8)
     }
 

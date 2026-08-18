@@ -10,6 +10,9 @@ final class AttendanceViewModel: ObservableObject {
     @Published var phase: Phase = .idle
     @Published var rows: [ReviewRow] = []
     @Published var filter: ReviewFilter = .all
+    /// nil = syncing/unknown, true = confirmed written to the cloud DB, false = failed
+    /// (never silently swallowed — the teacher must know if it didn't actually save).
+    @Published var cloudSynced: Bool?
 
     let section: ClassSection
     init(section: ClassSection) {
@@ -71,10 +74,18 @@ final class AttendanceViewModel: ObservableObject {
 
     func submit() async {
         let present = Set(rows.filter { $0.status == .present }.map { $0.registerNo })
-        phase = .submitted // Mark as submitted instantly so UI doesn't hang!
+        phase = .submitted   // instant local feedback so the UI doesn't hang
+        cloudSynced = nil
         Task {
-            // Write to shared cloud DB in background
-            try? await Supabase.submitAttendance(presentRegisters: present)
+            do {
+                try await Supabase.submitAttendance(presentRegisters: present)
+                cloudSynced = true
+            } catch {
+                // Never swallow this — a silent failure here means the teacher believes
+                // attendance was recorded when it wasn't (e.g. blocked by RLS with no
+                // teacher auth wired up yet). Surface it so they know to retry.
+                cloudSynced = false
+            }
         }
     }
 }
@@ -281,10 +292,25 @@ private struct SubmittedScreen: View {
     @ObservedObject var vm: AttendanceViewModel
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "checkmark.seal.fill").font(.system(size: 72))
-                .foregroundStyle(Theme.present).symbolEffect(.bounce, value: vm.phase)
-            Text("Attendance submitted").font(.title2.bold())
-            Text("\(vm.present) present · \(vm.absent) absent").foregroundStyle(Theme.dim)
+            switch vm.cloudSynced {
+            case false:
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 72))
+                    .foregroundStyle(Theme.absent)
+                Text("Saved on this phone only").font(.title2.bold())
+                Text("Couldn't reach the cloud database — attendance was NOT recorded for other devices.")
+                    .font(.footnote).foregroundStyle(Theme.dim)
+                    .multilineTextAlignment(.center).padding(.horizontal, 32)
+                Button("Retry") { Task { await vm.submit() } }
+                    .buttonStyle(FilledButton()).padding(.top, 8)
+            case true:
+                Image(systemName: "checkmark.seal.fill").font(.system(size: 72))
+                    .foregroundStyle(Theme.present).symbolEffect(.bounce, value: vm.phase)
+                Text("Attendance submitted").font(.title2.bold())
+                Text("\(vm.present) present · \(vm.absent) absent").foregroundStyle(Theme.dim)
+            case nil:
+                ProgressView().controlSize(.large)
+                Text("Saving…").font(.title3.bold()).foregroundStyle(Theme.dim)
+            }
         }
     }
 }
