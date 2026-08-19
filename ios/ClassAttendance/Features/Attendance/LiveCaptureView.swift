@@ -11,7 +11,8 @@ final class TrackedFace {
   var name: String?
   var present = false  // matched at the "present" threshold
   var score: Float = 0 // match confidence
-  
+  var tooFar = false   // face too small in the frame to identify reliably
+
   // Rolling track history: maps Register No -> Array of recent similarity scores
   var scores: [String: [Float]] = [:]
 
@@ -28,6 +29,7 @@ struct LiveBox {
   let name: String?
   let present: Bool
   var score: Float = 0
+  var tooFar = false
 }
 
 /// On-device live capture: detect + track faces, recognise each ONCE (Vision
@@ -42,11 +44,15 @@ final class FaceTracker: NSObject, ObservableObject,
   @Published var presentRegisters: Set<String> = []
   @Published var unavailable: String?
   @Published var cameraPosition: AVCaptureDevice.Position = .front
+  @Published var captureAspect: CGFloat = 9.0 / 16.0   // portrait width/height (drives overlay)
 
   private let queue = DispatchQueue(label: "face.tracker")
   private let sequence = VNSequenceRequestHandler()
   private nonisolated(unsafe) var tracks: [TrackedFace] = []  // capture-queue only
   private nonisolated(unsafe) var frame = 0
+  private nonisolated(unsafe) var frameLongPx: CGFloat = 1920   // long side of the buffer
+  private nonisolated(unsafe) var aspectPublished = false
+  private let minFacePx: CGFloat = 120   // below this a face is too small to identify
   
   var isRecording = false
 
@@ -77,7 +83,11 @@ final class FaceTracker: NSObject, ObservableObject,
         self.session.beginConfiguration()
         self.session.inputs.forEach { self.session.removeInput($0) }
         
-        self.session.sessionPreset = .medium  // 480p — much lighter than .high for face tracking
+        // Phase 2: 1080p = 4x the pixels of 480p -> roughly doubles the distance at
+        // which a face is recognisable, while staying real-time for tracking. (True
+        // 4K is reserved for the server/camera path where time isn't constrained.)
+        self.session.sessionPreset =
+            self.session.canSetSessionPreset(.hd1920x1080) ? .hd1920x1080 : .high
         guard
           let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition) ?? AVCaptureDevice.default(for: .video),
           let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input)
@@ -113,6 +123,16 @@ final class FaceTracker: NSObject, ObservableObject,
     // Skip 2 out of 3 frames to reduce CPU load
     guard frame % 3 == 0 else { return }
 
+    // Track the frame's pixel size (for the far-away gate) and publish the aspect
+    // ratio once so the overlay lines up at any capture resolution.
+    let bw = CVPixelBufferGetWidth(pixel), bh = CVPixelBufferGetHeight(pixel)
+    frameLongPx = CGFloat(max(bw, bh))
+    if !aspectPublished {
+        aspectPublished = true
+        let a = CGFloat(min(bw, bh)) / frameLongPx
+        Task { @MainActor in self.captureAspect = a }
+    }
+
     var out: [LiveBox] = []
 
     if tracks.isEmpty || frame % 30 == 0 {
@@ -131,10 +151,14 @@ final class FaceTracker: NSObject, ObservableObject,
           tf.scores = carried.scores
         }
         
-        // 2. Run the recogniser on detection frames; keep a rolling score history per person.
-        //    (Do NOT cache the name here — a name is only bound after it clears the
-        //    confident threshold below, so a stranger is never labelled.)
-        if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
+        // 2. Gate on face size: a face too small in the frame can't be identified
+        //    reliably (the crop upscaled to 112px is blurry). Track it but don't run
+        //    the recogniser — tell the teacher to move closer / pan. recognise-once-
+        //    then-track means it gets identified the moment it's big enough during a sweep.
+        let faceHeightPx = box.height * frameLongPx
+        if faceHeightPx < minFacePx {
+            tf.tooFar = true
+        } else if let fp = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: box) {
             let matches = FaceRecognizer.shared.matchAll(fp)
             for (reg, data) in matches {
                 var list = tf.scores[reg] ?? []
@@ -182,7 +206,7 @@ final class FaceTracker: NSObject, ObservableObject,
               tf.present = false
               tf.score = 0
           }
-          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score))
+          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score, tooFar: tf.tooFar))
       }
       
       tracks = next
@@ -194,7 +218,7 @@ final class FaceTracker: NSObject, ObservableObject,
           tf.request.inputObservation = r
           tf.box = r.boundingBox
           kept.append(tf)
-          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score))
+          out.append(LiveBox(rect: tf.box, name: tf.name, present: tf.present, score: tf.score, tooFar: tf.tooFar))
         }
       }
       tracks = kept
@@ -234,14 +258,16 @@ struct FaceCameraView: UIViewRepresentable {
     v.previewLayer.videoGravity = .resizeAspectFill
     return v
   }
-  func updateUIView(_ v: PreviewView, context: Context) { v.render(tracker.boxes) }
+  func updateUIView(_ v: PreviewView, context: Context) {
+    v.render(tracker.boxes, aspect: tracker.captureAspect)
+  }
 
   final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     private var overlays: [CALayer] = []
 
-    func render(_ boxes: [LiveBox]) {
+    func render(_ boxes: [LiveBox], aspect: CGFloat) {
       // Batch: remove old, add new
       CATransaction.begin()
       CATransaction.setDisableActions(true)
@@ -252,7 +278,7 @@ struct FaceCameraView: UIViewRepresentable {
           CATransaction.commit()
           return
       }
-      let imageRatio: CGFloat = 3.0 / 4.0 // 480x640 in portrait
+      let imageRatio: CGFloat = aspect > 0 ? aspect : 3.0 / 4.0  // portrait width/height
       let viewRatio = layerSize.width / layerSize.height
       
       let scale: CGFloat
@@ -277,7 +303,8 @@ struct FaceCameraView: UIViewRepresentable {
             height: b.rect.height * renderedHeight
         )
         let color: UIColor =
-          b.present ? .systemGreen : (b.name != nil ? .systemOrange : .systemYellow)
+          b.present ? .systemGreen
+          : (b.tooFar ? .systemGray : (b.name != nil ? .systemOrange : .systemYellow))
 
         let box = CAShapeLayer()
         box.path = UIBezierPath(roundedRect: rect, cornerRadius: 8).cgPath
@@ -291,6 +318,8 @@ struct FaceCameraView: UIViewRepresentable {
         let pct = String(format: "%.0f%%", max(0, b.score) * 100)
         if b.present {
             label.string = "\(b.name ?? "Unknown")  \(pct)"
+        } else if b.tooFar {
+            label.string = "Move closer"        // too small to identify yet
         } else if b.score > 0 {
             label.string = "Not sure  \(pct)"   // below the match threshold — never named
         } else {
@@ -369,6 +398,15 @@ struct LiveCaptureView: View {
           .font(.subheadline.bold())
           .padding(.horizontal, 16).padding(.vertical, 10)
           .background(.ultraThinMaterial, in: Capsule())
+
+          if running && !finished {
+            Label("Pan slowly across the room — get closer to far rows",
+                  systemImage: "arrow.left.and.right")
+              .font(.caption).foregroundStyle(.white)
+              .padding(.horizontal, 12).padding(.vertical, 6)
+              .background(.ultraThinMaterial, in: Capsule())
+              .padding(.top, 6)
+          }
 
           if finished {
             // Post-capture: Submit or Capture Again
