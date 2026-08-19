@@ -109,6 +109,18 @@ struct AttendanceView: View {
         .animation(Theme.spring, value: vm.phase == .review)
         .navigationTitle(vm.section.courseCode)
         .navigationBarTitleDisplayMode(.inline)
+        .task { await syncClassDataset() }
+    }
+
+    /// Phase 1d: opening a class pulls THAT class's face dataset onto the phone,
+    /// so on-device recognition matches the right students. Cloud ids are UUIDs;
+    /// demo/offline ids (e.g. "CS301") are skipped.
+    private func syncClassDataset() async {
+        await Supabase.restoreSession()
+        guard Supabase.isSignedIn, vm.section.id.count == 36 else { return }
+        if let people = try? await Supabase.downloadClassDataset(sectionId: vm.section.id) {
+            FaceRecognizer.shared.replaceAll(people.map { ($0.register, $0.name, $0.prints) })
+        }
     }
 
     private func startCapture() {

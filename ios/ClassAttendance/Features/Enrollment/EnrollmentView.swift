@@ -24,6 +24,8 @@ struct EnrollmentView: View {
     @State private var firstTurnSign: Double = 0   // remembers which way they turned for shot 2
 
     // Phase 1: cloud class dataset (enrol against a real rostered student).
+    @State private var myClasses: [ClassSection] = []
+    @State private var selectedClass: ClassSection?
     @State private var roster: [Supabase.RosterStudent] = []
     @State private var cloudStudent: Supabase.RosterStudent?
     @State private var cloudStatus = ""
@@ -57,6 +59,15 @@ struct EnrollmentView: View {
         Form {
             if Supabase.isSignedIn {
                 Section("Class dataset (cloud)") {
+                    Picker("Class", selection: $selectedClass) {
+                        ForEach(myClasses) { c in
+                            Text("\(c.courseCode) · \(c.courseTitle)").tag(ClassSection?.some(c))
+                        }
+                    }
+                    .onChange(of: selectedClass) { _, c in
+                        cloudStudent = nil
+                        Task { await loadRoster(for: c) }
+                    }
                     Picker("Enrolling", selection: $cloudStudent) {
                         Text("New / manual").tag(Supabase.RosterStudent?.none)
                         ForEach(roster) { s in
@@ -67,10 +78,11 @@ struct EnrollmentView: View {
                         if let s { registerNo = s.register_no; fullName = s.full_name }
                     }
                     Button {
+                        guard let sid = selectedClass?.id else { return }
                         Task {
                             cloudStatus = "Downloading…"
                             do {
-                                let people = try await Supabase.downloadClassDataset(sectionId: Supabase.demoSection)
+                                let people = try await Supabase.downloadClassDataset(sectionId: sid)
                                 FaceRecognizer.shared.replaceAll(people.map { ($0.register, $0.name, $0.prints) })
                                 enrolledList = FaceRecognizer.shared.enrolledList()
                                 cloudStatus = "⬇︎ Loaded \(people.count) students onto this phone"
@@ -242,12 +254,18 @@ struct EnrollmentView: View {
             enrolledList = FaceRecognizer.shared.enrolledList()
             Task {
                 await Supabase.restoreSession()
-                if Supabase.isSignedIn {
-                    roster = (try? await Supabase.rosterStudents(sectionId: Supabase.demoSection)) ?? []
-                }
+                guard Supabase.isSignedIn else { return }
+                myClasses = (try? await Supabase.myClasses()) ?? []
+                selectedClass = myClasses.first
+                await loadRoster(for: selectedClass)
             }
         }
         .onDisappear { cam.stop() }
+    }
+
+    private func loadRoster(for section: ClassSection?) async {
+        guard let section else { roster = []; return }
+        roster = (try? await Supabase.rosterStudents(sectionId: section.id)) ?? []
     }
 }
 

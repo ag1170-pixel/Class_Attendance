@@ -232,12 +232,23 @@ enum Supabase {
             json: rows, prefer: "return=minimal", authenticated: true))
     }
 
+    private static let sectionSelect =
+        "id,course(code,title),room(code,building(name))," +
+        "schedule(day_of_week,start_time,end_time),section_roster(count)"
+
     static func fetchSections() async throws -> [ClassSection] {
-        let select = "id,course(code,title),room(code,building(name))," +
-                     "schedule(day_of_week,start_time,end_time),section_roster(count)"
         var comp = URLComponents(string: "\(restURL)/section")!
-        comp.queryItems = [URLQueryItem(name: "select", value: select)]
+        comp.queryItems = [URLQueryItem(name: "select", value: sectionSelect)]
         let data = try await send(request(comp.url!))
+        return try JSONDecoder().decode([SectionRow].self, from: data).map { $0.toSection() }
+    }
+
+    /// The signed-in teacher's OWN classes only (RLS-scoped). Empty if not signed in.
+    static func myClasses() async throws -> [ClassSection] {
+        guard accessToken != nil else { return [] }
+        var comp = URLComponents(string: "\(restURL)/section")!
+        comp.queryItems = [URLQueryItem(name: "select", value: sectionSelect)]
+        let data = try await send(request(comp.url!, authenticated: true))
         return try JSONDecoder().decode([SectionRow].self, from: data).map { $0.toSection() }
     }
 
