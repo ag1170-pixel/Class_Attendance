@@ -138,6 +138,18 @@ final class FaceRecognizer {
         save()
     }
 
+    /// Replace the whole on-device roster with a class dataset pulled from the cloud
+    /// (Phase 1: "the teacher's students live on the phone"). Overwrites local state.
+    func replaceAll(_ people: [(register: String, name: String, prints: [[Float]])]) {
+        lock.lock()
+        enrolled.removeAll()
+        for p in people where !p.prints.isEmpty {
+            enrolled[p.register] = Enrolled(register: p.register, name: p.name, prints: p.prints)
+        }
+        lock.unlock()
+        save()
+    }
+
     func enrolledList() -> [(register: String, name: String)] {
         lock.lock(); defer { lock.unlock() }
         return Array(enrolled.values).map { (register: $0.register, name: $0.name) }.sorted(by: { $0.register < $1.register })

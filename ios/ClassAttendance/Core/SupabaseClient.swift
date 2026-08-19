@@ -144,6 +144,94 @@ enum Supabase {
                     method: "POST", json: records, prefer: "return=minimal", authenticated: true))
     }
 
+    // MARK: - Phase 1: teacher's class dataset (enroll to cloud / download to phone)
+
+    struct RosterStudent: Identifiable, Decodable, Hashable {
+        let id: String
+        let register_no: String
+        let full_name: String
+    }
+
+    /// Students in one of the teacher's own classes (RLS scopes to owned rosters).
+    static func rosterStudents(sectionId: String) async throws -> [RosterStudent] {
+        var comp = URLComponents(string: "\(restURL)/section_roster")!
+        comp.queryItems = [.init(name: "section_id", value: "eq.\(sectionId)"),
+                           .init(name: "select", value: "student(id,register_no,full_name)")]
+        let data = try await send(request(comp.url!, authenticated: true))
+        struct Row: Decodable { let student: RosterStudent }
+        return try JSONDecoder().decode([Row].self, from: data).map(\.student)
+    }
+
+    /// One enrolled student, ready for the on-device recogniser.
+    struct EnrolledPerson { let register: String; let name: String; let prints: [[Float]] }
+
+    /// Download a class's whole face dataset (roster + active templates), grouped per
+    /// student → feeds the on-device matcher. This IS the "teacher's dataset lives on
+    /// the phone" pull. One roster fetch + one templates fetch.
+    static func downloadClassDataset(sectionId: String) async throws -> [EnrolledPerson] {
+        let students = try await rosterStudents(sectionId: sectionId)
+        guard !students.isEmpty else { return [] }
+        let byId = Dictionary(uniqueKeysWithValues: students.map { ($0.id, $0) })
+        let ids = students.map(\.id).joined(separator: ",")
+
+        var comp = URLComponents(string: "\(restURL)/face_template")!
+        comp.queryItems = [.init(name: "student_id", value: "in.(\(ids))"),
+                           .init(name: "is_active", value: "eq.true"),
+                           .init(name: "select", value: "student_id,embedding")]
+        let data = try await send(request(comp.url!, authenticated: true))
+        struct Raw: Decodable { let student_id: String; let embedding: EmbeddingValue }
+        let raws = try JSONDecoder().decode([Raw].self, from: data)
+
+        var printsById: [String: [[Float]]] = [:]
+        for r in raws { printsById[r.student_id, default: []].append(r.embedding.floats) }
+        return printsById.compactMap { sid, prints in
+            guard let s = byId[sid] else { return nil }
+            return EnrolledPerson(register: s.register_no, name: s.full_name, prints: prints)
+        }
+    }
+
+    /// pgvector arrives either as a JSON array or as a "[...]" string — handle both.
+    struct EmbeddingValue: Decodable {
+        let floats: [Float]
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if let arr = try? c.decode([Float].self) { floats = arr; return }
+            let s = try c.decode(String.self)
+            floats = s.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                .split(separator: ",").compactMap { Float($0.trimmingCharacters(in: .whitespaces)) }
+        }
+    }
+
+    /// Upload the captured face templates for a rostered student (consent + templates).
+    /// Deactivates previous templates so re-enrolment replaces cleanly. Teacher only.
+    static func uploadTemplates(studentId: String, templates: [[Float]],
+                                modelVersion: String = "sface-2021dec") async throws {
+        guard accessToken != nil else {
+            throw AuthError(errorDescription: "Sign in as a teacher first (Settings → Sign in).")
+        }
+        // 1) consent row (biometric write requires it)
+        let cData = try await send(request(URL(string: "\(restURL)/consent")!, method: "POST",
+            json: [["student_id": studentId, "policy_version": "v1", "granted_by": demoTeacher]],
+            prefer: "return=representation", authenticated: true))
+        struct C: Decodable { let id: String }
+        guard let consentId = (try JSONDecoder().decode([C].self, from: cData)).first?.id else {
+            throw URLError(.badServerResponse)
+        }
+        // 2) retire any existing templates for this student
+        _ = try? await send(request(
+            URL(string: "\(restURL)/face_template?student_id=eq.\(studentId)")!,
+            method: "PATCH", json: ["is_active": false], prefer: "return=minimal", authenticated: true))
+        // 3) insert the new templates (pgvector wants a "[...]" string)
+        let rows: [[String: Any]] = templates.map { emb in
+            ["student_id": studentId,
+             "embedding": "[" + emb.map { String($0) }.joined(separator: ",") + "]",
+             "model_version": modelVersion, "quality_score": 1.0,
+             "consent_id": consentId, "is_active": true]
+        }
+        _ = try await send(request(URL(string: "\(restURL)/face_template")!, method: "POST",
+            json: rows, prefer: "return=minimal", authenticated: true))
+    }
+
     static func fetchSections() async throws -> [ClassSection] {
         let select = "id,course(code,title),room(code,building(name))," +
                      "schedule(day_of_week,start_time,end_time),section_roster(count)"
