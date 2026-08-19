@@ -23,6 +23,11 @@ struct EnrollmentView: View {
     private let need = 3   // require 3 photos for reliable recognition
     @State private var firstTurnSign: Double = 0   // remembers which way they turned for shot 2
 
+    // Phase 1: cloud class dataset (enrol against a real rostered student).
+    @State private var roster: [Supabase.RosterStudent] = []
+    @State private var cloudStudent: Supabase.RosterStudent?
+    @State private var cloudStatus = ""
+
     private let stepHints = ["Look straight at the camera",
                              "Turn your head slightly to one side",
                              "Now turn slightly the other way"]
@@ -50,11 +55,47 @@ struct EnrollmentView: View {
 
     var body: some View {
         Form {
+            if Supabase.isSignedIn {
+                Section("Class dataset (cloud)") {
+                    Picker("Enrolling", selection: $cloudStudent) {
+                        Text("New / manual").tag(Supabase.RosterStudent?.none)
+                        ForEach(roster) { s in
+                            Text("\(s.full_name) · \(s.register_no)").tag(Supabase.RosterStudent?.some(s))
+                        }
+                    }
+                    .onChange(of: cloudStudent) { _, s in
+                        if let s { registerNo = s.register_no; fullName = s.full_name }
+                    }
+                    Button {
+                        Task {
+                            cloudStatus = "Downloading…"
+                            do {
+                                let people = try await Supabase.downloadClassDataset(sectionId: Supabase.demoSection)
+                                FaceRecognizer.shared.replaceAll(people.map { ($0.register, $0.name, $0.prints) })
+                                enrolledList = FaceRecognizer.shared.enrolledList()
+                                cloudStatus = "⬇︎ Loaded \(people.count) students onto this phone"
+                            } catch { cloudStatus = "⚠️ \(error.localizedDescription)" }
+                        }
+                    } label: {
+                        Label("Download class faces to this phone", systemImage: "square.and.arrow.down")
+                    }
+                    if !cloudStatus.isEmpty {
+                        Text(cloudStatus).font(.caption).foregroundStyle(Theme.dim)
+                    }
+                }
+            } else {
+                Section {
+                    Label("Sign in (Settings → Cloud sync) to sync this class's dataset.",
+                          systemImage: "icloud.slash").font(.footnote).foregroundStyle(Theme.dim)
+                }
+            }
             Section("Student") {
                 TextField("Register No", text: $registerNo)
                     .focused($isInputActive).textInputAutocapitalization(.characters)
+                    .disabled(cloudStudent != nil)
                 TextField("Full name", text: $fullName)
                     .focused($isInputActive)
+                    .disabled(cloudStudent != nil)
             }
             Section("Consent") {
                 Toggle("Student consents to face enrollment", isOn: $consent)
@@ -133,14 +174,25 @@ struct EnrollmentView: View {
             }
 
             Button(showSuccess ? "Enrolled ✓" : "Enroll Face") {
-                for print in captured {
+                let temps = captured
+                for print in temps {
                     FaceRecognizer.shared.enroll(register: registerNo, name: fullName, print: print)
                 }
                 showSuccess = true
                 enrolledList = FaceRecognizer.shared.enrolledList()
+                // Sync to the cloud dataset when a rostered student is selected.
+                if let cs = cloudStudent {
+                    Task {
+                        do {
+                            try await Supabase.uploadTemplates(studentId: cs.id, templates: temps)
+                            cloudStatus = "☁️ Synced \(cs.full_name) to cloud"
+                        } catch { cloudStatus = "⚠️ Cloud sync failed: \(error.localizedDescription)" }
+                    }
+                }
                 captured.removeAll(); thumbs.removeAll()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                    showSuccess = false; registerNo = ""; fullName = ""; consent = false
+                    showSuccess = false
+                    if cloudStudent == nil { registerNo = ""; fullName = ""; consent = false }
                 }
             }
             .disabled(showSuccess || !canEnroll)
@@ -188,6 +240,12 @@ struct EnrollmentView: View {
         .onAppear {
             cam.start()
             enrolledList = FaceRecognizer.shared.enrolledList()
+            Task {
+                await Supabase.restoreSession()
+                if Supabase.isSignedIn {
+                    roster = (try? await Supabase.rosterStudents(sectionId: Supabase.demoSection)) ?? []
+                }
+            }
         }
         .onDisappear { cam.stop() }
     }
