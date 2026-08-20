@@ -77,14 +77,20 @@ final class AttendanceViewModel: ObservableObject {
         let present = Set(rows.filter { $0.status == .present }.map { $0.registerNo })
         phase = .submitted   // instant local feedback so the UI doesn't hang
         cloudSynced = nil
+        let sectionId = section.id
         Task {
+            // Only cloud classes (UUID ids) can sync; demo/offline classes stay local.
+            guard sectionId.count == 36 else {
+                cloudSynced = false
+                syncError = "Open one of your cloud classes (sign in) to save attendance."
+                return
+            }
             do {
-                try await Supabase.submitAttendance(presentRegisters: present)
+                try await Supabase.submitAttendance(sectionId: sectionId, presentRegisters: present)
                 cloudSynced = true
             } catch {
                 // Never swallow this — a silent failure here means the teacher believes
-                // attendance was recorded when it wasn't. Surface the real reason
-                // (e.g. "sign in first") so they know exactly what to do.
+                // attendance was recorded when it wasn't. Surface the real reason.
                 cloudSynced = false
                 syncError = error.localizedDescription
             }

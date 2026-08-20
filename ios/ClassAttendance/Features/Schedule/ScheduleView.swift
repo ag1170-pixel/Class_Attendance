@@ -55,14 +55,24 @@ struct ScheduleView: View {
                 }
             }
             .overlay(alignment: .bottom) {
-                Text(live ? "● Live from Supabase" : "○ Demo data (offline)")
-                    .font(.caption2).foregroundStyle(live ? Theme.present : Theme.dim)
+                Text(Supabase.isSignedIn ? "● Your classes (live)"
+                     : (live ? "● Public class list" : "○ Demo data (offline)"))
+                    .font(.caption2).foregroundStyle(live || Supabase.isSignedIn ? Theme.present : Theme.dim)
                     .padding(.bottom, 4)
             }
         }
     }
 
     private func loadLive() async {
+        // Signed-in teacher → show ONLY their own classes (each taps through to
+        // attendance, which auto-syncs that class's face dataset to the phone).
+        await Supabase.restoreSession()
+        if Supabase.isSignedIn, let mine = try? await Supabase.myClasses(), !mine.isEmpty {
+            classes = mine
+            live = true
+            return
+        }
+        // Signed out → the public class list (demo / offline).
         if let fetched = try? await Supabase.fetchSections(), !fetched.isEmpty {
             classes = fetched
             live = true

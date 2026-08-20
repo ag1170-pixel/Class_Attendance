@@ -108,23 +108,46 @@ enum Supabase {
         return data
     }
 
-    /// Write a submitted attendance session + one record per rostered student.
-    /// Requires a signed-in teacher — see docs/SECURITY_REVIEW.md.
-    static func submitAttendance(presentRegisters: Set<String>) async throws {
-        guard accessToken != nil else {
-            throw AuthError(errorDescription: "Sign in as a teacher first (Settings → Sign in).")
+    /// The signed-in teacher's own app_user id (self-read via RLS).
+    private static func myTeacherId() async throws -> String {
+        let data = try await send(request(
+            URL(string: "\(restURL)/app_user?select=id&limit=1")!, authenticated: true))
+        struct U: Decodable { let id: String }
+        guard let id = (try JSONDecoder().decode([U].self, from: data)).first?.id else {
+            throw AuthError(errorDescription: "No teacher profile is linked to this account.")
         }
-        // 1) roster: register_no -> student id (own roster only, per RLS)
+        return id
+    }
+
+    private static func roomId(forSection sectionId: String) async throws -> String? {
+        var comp = URLComponents(string: "\(restURL)/section")!
+        comp.queryItems = [.init(name: "id", value: "eq.\(sectionId)"),
+                           .init(name: "select", value: "room_id")]
+        let data = try await send(request(comp.url!, authenticated: true))
+        struct S: Decodable { let room_id: String? }
+        return (try? JSONDecoder().decode([S].self, from: data))?.first?.room_id ?? nil
+    }
+
+    /// Write a submitted attendance session + one record per rostered student, for
+    /// the ACTUAL class being taken. Requires a signed-in teacher (RLS-scoped).
+    static func submitAttendance(sectionId: String, presentRegisters: Set<String>) async throws {
+        guard accessToken != nil else {
+            throw AuthError(errorDescription: "Sign in as a teacher first (Settings → Cloud sync).")
+        }
+        let teacherId = try await myTeacherId()
+        let roomId = try await roomId(forSection: sectionId)
+
+        // roster for THIS class: register_no -> student id
         var comp = URLComponents(string: "\(restURL)/section_roster")!
-        comp.queryItems = [.init(name: "section_id", value: "eq.\(demoSection)"),
+        comp.queryItems = [.init(name: "section_id", value: "eq.\(sectionId)"),
                            .init(name: "select", value: "student(id,register_no)")]
         let rData = try await send(request(comp.url!, authenticated: true))
         struct RRow: Decodable { let student: S; struct S: Decodable { let id: String; let register_no: String } }
         let roster = try JSONDecoder().decode([RRow].self, from: rData)
 
-        // 2) create the session
-        let sBody: [String: Any] = ["section_id": demoSection, "teacher_id": demoTeacher,
-                                    "room_id": demoRoom, "capture_path": "iphone", "status": "submitted"]
+        var sBody: [String: Any] = ["section_id": sectionId, "teacher_id": teacherId,
+                                    "capture_path": "iphone", "status": "submitted"]
+        if let roomId { sBody["room_id"] = roomId }
         let sData = try await send(
             request(URL(string: "\(restURL)/attendance_session")!,
                     method: "POST", json: [sBody], prefer: "return=representation", authenticated: true))
@@ -133,7 +156,6 @@ enum Supabase {
             throw URLError(.badServerResponse)
         }
 
-        // 3) one record per student
         let records: [[String: Any]] = roster.map {
             ["session_id": sid, "student_id": $0.student.id,
              "status": presentRegisters.contains($0.student.register_no) ? "present" : "absent",

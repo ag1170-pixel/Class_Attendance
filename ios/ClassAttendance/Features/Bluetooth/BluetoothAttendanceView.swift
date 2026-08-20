@@ -92,9 +92,14 @@ struct BluetoothAttendanceView: View {
             Button {
                 submitting = true; syncFailed = false
                 let present = ble.presentRegisters
+                let sectionId = section.id
                 Task {
                     do {
-                        try await Supabase.submitAttendance(presentRegisters: present)
+                        guard sectionId.count == 36 else {
+                            throw Supabase.AuthError(errorDescription:
+                                "Open one of your cloud classes (sign in) to save attendance.")
+                        }
+                        try await Supabase.submitAttendance(sectionId: sectionId, presentRegisters: present)
                         submitting = false; submitted = true
                         ble.stop()
                     } catch {
