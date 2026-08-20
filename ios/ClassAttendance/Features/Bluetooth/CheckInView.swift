@@ -1,14 +1,36 @@
 import SwiftUI
+import LocalAuthentication
 
 /// Student-side Bluetooth check-in (the other half of the Bluetooth method).
 /// The phone advertises the student's register number so the teacher's scanning
-/// device can detect it. Keep this screen open during attendance.
+/// device can detect it. Gated by Face ID (TrueDepth) so a live person — not a
+/// friend holding the phone — has to be present: proximity + a real face = proxy-proof.
+/// Keep this screen open during attendance.
 struct CheckInView: View {
     @StateObject private var ble = ProximityService()
     @State private var register = "RA2411026010081"   // demo default (Aditya)
+    @State private var authError = ""
     @FocusState private var editing: Bool
 
     private var live: Bool { ble.mode == .student }
+
+    /// Require a live Face ID / Touch ID match, THEN start advertising presence.
+    private func verifyThenCheckIn() {
+        editing = false; authError = ""
+        let ctx = LAContext()
+        ctx.localizedFallbackTitle = "Use Passcode"
+        var err: NSError?
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+            ble.startStudent(register: register); return   // no biometrics (e.g. simulator) — allow in demo
+        }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication,
+                           localizedReason: "Confirm it's really you to check in") { ok, e in
+            DispatchQueue.main.async {
+                if ok { ble.startStudent(register: register) }
+                else { authError = e?.localizedDescription ?? "Face ID couldn't confirm it's you." }
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 22) {
@@ -21,9 +43,13 @@ struct CheckInView: View {
 
             Text(live ? "You're checked in" : "Bluetooth check-in")
                 .font(.title2.bold())
-            Text(live ? ble.status : "Enter your register number and tap check in when class starts.")
+            Text(live ? ble.status : "Enter your register number, then confirm with Face ID to check in.")
                 .font(.footnote).foregroundStyle(Theme.dim)
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
+            if !authError.isEmpty {
+                Text(authError).font(.caption).foregroundStyle(Theme.absent)
+                    .multilineTextAlignment(.center).padding(.horizontal, 32)
+            }
 
             TextField("Register No", text: $register)
                 .textFieldStyle(.roundedBorder)
@@ -42,8 +68,8 @@ struct CheckInView: View {
                 }
                 .buttonStyle(.bordered).padding(.horizontal, 24)
             } else {
-                Button { editing = false; ble.startStudent(register: register) } label: {
-                    Label("Check in", systemImage: "wave.3.right")
+                Button { verifyThenCheckIn() } label: {
+                    Label("Check in with Face ID", systemImage: "faceid")
                 }
                 .buttonStyle(FilledButton())
                 .disabled(register.isEmpty)

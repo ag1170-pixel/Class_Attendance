@@ -20,7 +20,7 @@ struct EnrollmentView: View {
     @State private var enrolledList: [(register: String, name: String)] = []
     @FocusState private var isInputActive: Bool
 
-    private let need = 3   // require 3 photos for reliable recognition
+    private let need = 4   // 4 varied photos for reliable recognition
     @State private var firstTurnSign: Double = 0   // remembers which way they turned for shot 2
 
     // Phase 1: cloud class dataset (enrol against a real rostered student).
@@ -32,7 +32,8 @@ struct EnrollmentView: View {
 
     private let stepHints = ["Look straight at the camera",
                              "Turn your head slightly to one side",
-                             "Now turn slightly the other way"]
+                             "Now turn slightly the other way",
+                             "Move closer for a clear close-up"]
 
     var isDuplicate: Bool { enrolledList.contains(where: { $0.register == registerNo }) }
 
@@ -43,6 +44,7 @@ struct EnrollmentView: View {
     /// Is the head pose right for the current shot? (frontal, then two opposite turns.)
     /// If Vision can't read the angle, we don't block — quality still gates capture.
     private func poseOK() -> Bool {
+        if captured.count == 3 { return cam.faceWidth >= 0.40 }   // close-up: fill the frame
         guard let y = cam.yaw else { return true }
         switch captured.count {
         case 0:  return abs(y) <= 0.22                                   // frontal
@@ -284,6 +286,7 @@ final class FaceCaptureController: NSObject, ObservableObject,
     @Published var unavailable: String?
     @Published var frozenImage: UIImage?
     @Published var yaw: Double?          // head turn (radians): ~0 = straight, ± = turned
+    @Published var faceWidth: Double = 0 // face box width as a fraction of frame (closeness)
     private let queue = DispatchQueue(label: "face.capture")
     // Latest good face embedding, kept ready for the Enroll button.
     private nonisolated(unsafe) var latestPrint: [Float]?
@@ -369,12 +372,13 @@ final class FaceCaptureController: NSObject, ObservableObject,
             .perform([quality, rect])
         let faces = (quality.results ?? [])
         let yawVal = rect.results?.first?.yaw?.doubleValue
+        let width = faces.first.map { Double($0.boundingBox.width) } ?? 0
         if faces.count == 1, (faces[0].faceCaptureQuality ?? 0) >= 0.35 {
             latestPixelBuffer = pixel
             latestPrint = FaceRecognizer.shared.featurePrint(pixelBuffer: pixel, faceBox: faces[0].boundingBox,
                                                              orientation: .leftMirrored)
         }
-        Task { @MainActor in self.yaw = yawVal; self.evaluate(faces) }
+        Task { @MainActor in self.yaw = yawVal; self.faceWidth = width; self.evaluate(faces) }
     }
 
     @MainActor
@@ -417,7 +421,13 @@ struct PoseGuideOverlay: View {
                 .scaleEffect(pulse ? 1.03 : 1.0)
                 .shadow(color: ready ? Color.green.opacity(0.7) : .clear, radius: 8)
 
-            if step >= 1 {
+            if step == 3 {
+                // Close-up cue: a pulsing magnifier = "move closer / fill the frame".
+                Image(systemName: "plus.magnifyingglass")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .scaleEffect(slide ? 1.12 : 0.92)
+            } else if step >= 1 {
                 // Two chevrons sliding side-to-side = "turn your head".
                 HStack {
                     Image(systemName: "chevron.left")
