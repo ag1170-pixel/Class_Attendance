@@ -64,6 +64,8 @@ struct ScheduleView: View {
     }
 
     private func loadLive() async {
+        // Offline demo → keep the local demo classes, don't wait on the network.
+        if session.offline { return }
         // Signed-in teacher → show ONLY their own classes (each taps through to
         // attendance, which auto-syncs that class's face dataset to the phone).
         await Supabase.restoreSession()

@@ -7,8 +7,16 @@ final class SessionManager: ObservableObject {
     @Published var role: Supabase.Role?
     @Published var busy = false
     @Published var error: String?
+    /// True when we entered without the cloud (demo / offline). Cloud actions are skipped.
+    @Published var offline = false
 
     var isSignedIn: Bool { role != nil }
+
+    /// Enter the app WITHOUT the network — for demos or when the cloud is unreachable.
+    /// Views should skip cloud fetches while `offline` is true.
+    func enterOffline(as role: Supabase.Role) {
+        self.role = role; self.offline = true; self.error = nil
+    }
 
     var name: String {
         switch role {
@@ -30,7 +38,7 @@ final class SessionManager: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
-        busy = true; error = nil
+        busy = true; error = nil; offline = false
         do {
             try await Supabase.signIn(email: email.trimmingCharacters(in: .whitespaces),
                                       password: password)

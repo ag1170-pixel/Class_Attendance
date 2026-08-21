@@ -49,11 +49,25 @@ struct LoginView: View {
                 .disabled(session.busy || email.isEmpty || password.isEmpty)
                 .padding(.horizontal, 28)
 
-                // Demo quick-fill
+                // Demo quick-fill (fills the fields for a real cloud sign-in)
                 HStack(spacing: 10) {
                     demoChip("Teacher", "admin@gmail.com")
                     demoChip("Student", "user@gmail.com")
                 }.padding(.top, 2)
+
+                // Offline entry — skips the network entirely (use if sign-in times out).
+                VStack(spacing: 8) {
+                    Text("or continue offline").font(.caption).foregroundStyle(Theme.dim)
+                    HStack(spacing: 12) {
+                        offlineButton("Teacher", systemImage: "person.fill",
+                                      role: .teacher(name: "Prof. Rao"))
+                        offlineButton("Student", systemImage: "graduationcap.fill",
+                                      role: .student(name: "Aditya Gupta",
+                                                     register: "RA2411026010081",
+                                                     studentId: "a0000006-0000-0000-0000-000000000006"))
+                    }
+                }
+                .padding(.top, 6).padding(.horizontal, 28)
 
                 Spacer(); Spacer()
             }
@@ -69,6 +83,17 @@ struct LoginView: View {
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Theme.surface2, in: Capsule())
                 .foregroundStyle(Theme.accent)
+        }
+    }
+
+    private func offlineButton(_ label: String, systemImage: String,
+                               role: Supabase.Role) -> some View {
+        Button { session.enterOffline(as: role) } label: {
+            Label("Continue as \(label)", systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity).padding(.vertical, 11)
+                .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(.primary)
         }
     }
 

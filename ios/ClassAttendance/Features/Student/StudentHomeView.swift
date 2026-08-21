@@ -109,8 +109,16 @@ struct StudentHomeView: View {
     }
 
     private func load() async {
+        loading = false
+        guard !session.offline else {          // offline demo: skip cloud, show a friendly empty state
+            classes = DemoData.sections.prefix(2).map {
+                Supabase.StudentClass(id: $0.id,
+                    course: .init(code: $0.courseCode, title: $0.courseTitle),
+                    schedule: [])
+            }
+            return
+        }
         if let a = try? await Supabase.studentAttendance() { present = a.present; total = a.total }
         classes = (try? await Supabase.studentClasses()) ?? []
-        loading = false
     }
 }
