@@ -8,9 +8,13 @@ import LocalAuthentication
 /// Keep this screen open during attendance.
 struct CheckInView: View {
     @StateObject private var ble = ProximityService()
-    @State private var register = "RA2411026010081"   // demo default (Aditya)
+    @State private var register: String
     @State private var authError = ""
     @FocusState private var editing: Bool
+
+    init(register: String = "RA2411026010081") {
+        _register = State(initialValue: register.isEmpty ? "RA2411026010081" : register)
+    }
 
     private var live: Bool { ble.mode == .student }
 

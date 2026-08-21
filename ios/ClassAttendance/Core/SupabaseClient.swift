@@ -29,6 +29,29 @@ enum Supabase {
 
     static var isSignedIn: Bool { refreshToken != nil }
 
+    /// Who is signed in — a teacher (has an app_user row) or a student (has a student
+    /// row), decided by which table their auth.uid() can read under RLS.
+    enum Role: Equatable {
+        case teacher(name: String)
+        case student(name: String, register: String, studentId: String)
+    }
+
+    static func currentRole() async -> Role? {
+        struct T: Decodable { let full_name: String }
+        if let d = try? await send(request(
+            URL(string: "\(restURL)/app_user?select=full_name&limit=1")!, authenticated: true)),
+           let t = (try? JSONDecoder().decode([T].self, from: d))?.first {
+            return .teacher(name: t.full_name)
+        }
+        struct S: Decodable { let id: String; let full_name: String; let register_no: String }
+        if let d = try? await send(request(
+            URL(string: "\(restURL)/student?select=id,full_name,register_no&limit=1")!, authenticated: true)),
+           let s = (try? JSONDecoder().decode([S].self, from: d))?.first {
+            return .student(name: s.full_name, register: s.register_no, studentId: s.id)
+        }
+        return nil
+    }
+
     struct AuthError: LocalizedError {
         let errorDescription: String?
     }
@@ -252,6 +275,33 @@ enum Supabase {
         }
         _ = try await send(request(URL(string: "\(restURL)/face_template")!, method: "POST",
             json: rows, prefer: "return=minimal", authenticated: true))
+    }
+
+    // MARK: - Student self-view
+
+    struct StudentClass: Decodable, Identifiable {
+        let id: String
+        let course: Course
+        let schedule: [Sched]
+        struct Course: Decodable { let code: String; let title: String }
+        struct Sched: Decodable { let day_of_week: Int?; let start_time: String }
+    }
+
+    /// The signed-in student's enrolled classes (RLS-scoped to them).
+    static func studentClasses() async throws -> [StudentClass] {
+        var comp = URLComponents(string: "\(restURL)/section")!
+        comp.queryItems = [.init(name: "select", value: "id,course(code,title),schedule(day_of_week,start_time)")]
+        let data = try await send(request(comp.url!, authenticated: true))
+        return try JSONDecoder().decode([StudentClass].self, from: data)
+    }
+
+    /// The signed-in student's attendance so far: (present, total).
+    static func studentAttendance() async throws -> (present: Int, total: Int) {
+        let data = try await send(request(
+            URL(string: "\(restURL)/attendance_record?select=status")!, authenticated: true))
+        struct R: Decodable { let status: String }
+        let rows = try JSONDecoder().decode([R].self, from: data)
+        return (rows.filter { $0.status == "present" }.count, rows.count)
     }
 
     private static let sectionSelect =

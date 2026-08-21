@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Today's classes for the signed-in teacher. Search, or add a course by QR.
 struct ScheduleView: View {
-    @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var session: SessionManager
     @EnvironmentObject var timetable: TimetableStore
     @State private var classes = DemoData.sections
     @State private var query = ""
@@ -39,7 +39,7 @@ struct ScheduleView: View {
             .searchable(text: $query, prompt: "Search your classes")
             .refreshable { await loadLive() }
             .task { await loadLive() }
-            .navigationTitle("Hi, \(auth.teacherName)")
+            .navigationTitle("Hi, \(session.firstName)")
             .navigationDestination(for: ClassSection.self) { AttendanceView(section: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

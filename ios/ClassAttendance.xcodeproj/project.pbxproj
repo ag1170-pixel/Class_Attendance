@@ -30,6 +30,8 @@
 		1A0000000000000000000C21 /* CheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F21 /* CheckInView.swift */; };
 		1A0000000000000000000C22 /* Timetable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F22 /* Timetable.swift */; };
 		1A0000000000000000000C23 /* MyTimetableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F23 /* MyTimetableView.swift */; };
+		1A0000000000000000000C24 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F24 /* SessionManager.swift */; };
+		1A0000000000000000000C25 /* StudentHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000F25 /* StudentHomeView.swift */; };
 		7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */; };
 		5FACE0000000000000000A1 /* SFace.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 5FACE0000000000000000B1 /* SFace.mlpackage */; };
 /* End PBXBuildFile section */
@@ -59,6 +61,8 @@
 		1A0000000000000000000F21 /* CheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Bluetooth/CheckInView.swift; sourceTree = "<group>"; };
 		1A0000000000000000000F22 /* Timetable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Timetable.swift; sourceTree = "<group>"; };
 		1A0000000000000000000F23 /* MyTimetableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Timetable/MyTimetableView.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F24 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/SessionManager.swift; sourceTree = "<group>"; };
+		1A0000000000000000000F25 /* StudentHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Student/StudentHomeView.swift; sourceTree = "<group>"; };
 		4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = MobileFaceNet.mlpackage; sourceTree = "<group>"; };
 		5FACE0000000000000000B1 /* SFace.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; path = SFace.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -116,6 +120,8 @@
 				1A0000000000000000000F21 /* CheckInView.swift */,
 				1A0000000000000000000F22 /* Timetable.swift */,
 				1A0000000000000000000F23 /* MyTimetableView.swift */,
+				1A0000000000000000000F24 /* SessionManager.swift */,
+				1A0000000000000000000F25 /* StudentHomeView.swift */,
 				4471668BBC3527B51A0A21C7 /* MobileFaceNet.mlpackage */,
 				5FACE0000000000000000B1 /* SFace.mlpackage */,
 			);
@@ -202,6 +208,8 @@
 				1A0000000000000000000C21 /* CheckInView.swift in Sources */,
 				1A0000000000000000000C22 /* Timetable.swift in Sources */,
 				1A0000000000000000000C23 /* MyTimetableView.swift in Sources */,
+				1A0000000000000000000C24 /* SessionManager.swift in Sources */,
+				1A0000000000000000000C25 /* StudentHomeView.swift in Sources */,
 				7D614772239A099EFBFBF436 /* MobileFaceNet.mlpackage in Sources */,
 				5FACE0000000000000000A1 /* SFace.mlpackage in Sources */,
 			);

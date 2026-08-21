@@ -2,33 +2,32 @@ import SwiftUI
 
 @main
 struct ClassAttendanceApp: App {
-    // Wire the demo teacher + backend here. Replace with SSO in production.
-    // teacherId must match a seeded app_user id (see `python -m backend.seed`).
-    @StateObject private var auth = AuthManager(
-        teacherId: ProcessInfo.processInfo.environment["TEACHER_ID"] ?? "SEED_TEACHER_ID",
-        teacherName: "Prof. Rao",
-        backendURL: URL(string: ProcessInfo.processInfo.environment["BACKEND_URL"]
-                        ?? "http://127.0.0.1:8000")!
-    )
+    @StateObject private var session = SessionManager()
     @StateObject private var timetable = TimetableStore()
+    @State private var restored = false
 
     var body: some Scene {
         WindowGroup {
-            if auth.isAuthenticated {
-                if ProcessInfo.processInfo.arguments.contains("-demoreview") {
-                    NavigationStack { AttendanceView(section: DemoData.sections[0]) }
-                        .environmentObject(auth)
+            Group {
+                if !restored {
+                    // brief splash while we restore any stored session
+                    ProgressView().controlSize(.large)
+                        .task {
+                            await session.restore()
+                            restored = true
+                        }
+                } else if session.isSignedIn {
+                    if session.isTeacher {
+                        MainTabView()
+                    } else {
+                        StudentHomeView()
+                    }
                 } else {
-                    MainTabView().environmentObject(auth).environmentObject(timetable)
+                    LoginView()
                 }
-            } else {
-                LoginView()
-                    .environmentObject(auth)
             }
+            .environmentObject(session)
+            .environmentObject(timetable)
         }
-    }
-
-    init() {
-        Task { await Supabase.restoreSession() }   // silent — never prompts
     }
 }
