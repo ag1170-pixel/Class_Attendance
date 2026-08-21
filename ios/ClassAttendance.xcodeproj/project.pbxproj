@@ -272,6 +272,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = ClassAttendance/ClassAttendance.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture faces to mark attendance.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock the app with Face ID.";
@@ -300,6 +301,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				ENABLE_PREVIEWS = YES;
+				CODE_SIGN_ENTITLEMENTS = ClassAttendance/ClassAttendance.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Capture faces to mark attendance.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlock the app with Face ID.";
