@@ -91,6 +91,7 @@ enum Supabase {
 
     private static func authRequest(_ path: String, json: [String: Any]) -> URLRequest {
         var r = URLRequest(url: URL(string: authURL + path)!)
+        r.timeoutInterval = 20   // fail fast instead of hanging the sign-in spinner
         r.httpMethod = "POST"
         r.setValue(key, forHTTPHeaderField: "apikey")
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -104,6 +105,7 @@ enum Supabase {
                                 json: Any? = nil, prefer: String? = nil,
                                 authenticated: Bool = false) -> URLRequest {
         var r = URLRequest(url: url)
+        r.timeoutInterval = 20   // fail fast instead of hanging
         r.httpMethod = method
         r.setValue(key, forHTTPHeaderField: "apikey")   // always required by the gateway
         // Writes use the signed-in teacher's token (RLS scopes them to their own
@@ -120,7 +122,22 @@ enum Supabase {
     /// Fires the request and throws unless the response is 2xx — never let a
     /// blocked write (RLS, auth, etc.) look like a silent success.
     private static func send(_ req: URLRequest, allowAuthErrors: Bool = false) async throws -> Data {
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let data: Data, resp: URLResponse
+        do {
+            (data, resp) = try await URLSession.shared.data(for: req)
+        } catch let e as URLError {
+            // Translate low-level network failures into something a person can act on.
+            switch e.code {
+            case .timedOut:
+                throw AuthError(errorDescription: "Couldn't reach the server (timed out). Check your internet — or, if you're running on the Mac, that the app is allowed network access.")
+            case .notConnectedToInternet, .networkConnectionLost:
+                throw AuthError(errorDescription: "No internet connection.")
+            case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+                throw AuthError(errorDescription: "Can't connect to the server. Check your network.")
+            default:
+                throw AuthError(errorDescription: "Network error: \(e.localizedDescription)")
+            }
+        }
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             if allowAuthErrors { return data }   // caller decodes the error body itself
             let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
